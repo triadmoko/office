@@ -33,6 +33,20 @@ On each push and pull request to `main` / `master`, CI runs:
 
 Matrix: **Go 1.23.x** and **stable** on **ubuntu-latest**.
 
+## Fuzzing (OPC / OOXML)
+
+`internal/ooxml` defines fuzz targets (`FuzzParseContentTypes`, `FuzzParseRelationships`, `FuzzResolveTarget`) in [`internal/ooxml/fuzz_test.go`](../internal/ooxml/fuzz_test.go). Contoh lokal singkat:
+
+```bash
+go test ./internal/ooxml -fuzz=FuzzParseContentTypes -fuzztime=30s
+```
+
+Workflow GitHub Actions untuk fuzz **nightly** direncanakan di tiket **OFFICE-502** ([`task/E05-ci-cd.md`](../task/E05-ci-cd.md)).
+
+## Large packages (`OpenWithOptions`)
+
+Untuk file ZIP besar atau batas kustom, gunakan `ooxml.OpenWithOptions` (lihat [`docs/security/zip-bomb-mitigation.md`](security/zip-bomb-mitigation.md)). `ooxml.Open` memakai default aman (total, jumlah part, dan ukuran per-part).
+
 ## Dependency policy
 
 **No third-party modules** in `go.mod` unless the project explicitly changes policy (see [CONTRIBUTING.md](../CONTRIBUTING.md)).

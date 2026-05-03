@@ -37,18 +37,9 @@ option. Callers are responsible for enforcing limits.
 
 ---
 
-## Vulnerability in Current `ooxml.Open()`
+## Historical risk (pre–OFFICE-008)
 
-The existing implementation contains an unbounded read in `Open()`:
-
-```go
-// internal/ooxml/package.go (before OFFICE-008)
-data, err := io.ReadAll(rc) // rc is the [Content_Types].xml entry — no size limit
-```
-
-A malicious OOXML file with a compressed `[Content_Types].xml` that expands to 10 GiB would
-cause the process to allocate 10 GiB of memory before returning an error (or OOM-crashing).
-The same vulnerability exists in `RootRelationships()` and any code that calls `ReadFile()`.
+Sebelum pembatasan ukuran, `Open()` melakukan `io.ReadAll` pada `[Content_Types].xml` tanpa limit — sebuah berkas jahat bisa memaksa alokasi memori sangat besar. **Perilaku saat ini:** `Open` / `OpenWithOptions` memeriksa metadata ZIP, membatasi jumlah entri dan ukuran terdeklarasi, dan `OpenReader` membungkus isi part dengan bacaan terbatas; rinciannya di bagian *Implementation Reference* di bawah.
 
 ---
 

@@ -11,7 +11,7 @@ Direktori ini berisi backlog detail gaya Jira yang dipecah per-epic untuk memuda
 | File | Isi | Tickets | Points |
 |---|---|---|---|
 | [`00-conventions.md`](./00-conventions.md) | Konvensi ticket, story points, sprint plan, epic overview | — | — |
-| [`E01-opc-foundation.md`](./E01-opc-foundation.md) | OPC Foundation Hardening (Sprint 0) | 9 | 34 |
+| [`E01-opc-foundation.md`](./E01-opc-foundation.md) | OPC Foundation Hardening (Sprint 0) — **selesai** | 9 | 34 |
 | [`E02-docx-mvp.md`](./E02-docx-mvp.md) | DOCX MVP — Read, Write, Round-Trip (Sprint 1–3) | 9 | 89 |
 | [`E03-xlsx-mvp.md`](./E03-xlsx-mvp.md) | XLSX MVP — Read, Write, Stream (Sprint 4–5) | 10 | 71 |
 | [`E04-pptx-mvp.md`](./E04-pptx-mvp.md) | PPTX MVP — Read, Write (Sprint 6–7) | 8 | 63 |
@@ -27,7 +27,7 @@ Direktori ini berisi backlog detail gaya Jira yang dipecah per-epic untuk memuda
 ## Cara Membaca
 
 1. Mulai dari [`00-conventions.md`](./00-conventions.md) untuk memahami konvensi.
-2. Sprint 0 wajib dikerjakan dulu — lihat [`E01-opc-foundation.md`](./E01-opc-foundation.md), [`E05-ci-cd.md`](./E05-ci-cd.md) (sebagian), [`E08-security.md`](./E08-security.md) (sebagian).
+2. Sprint 0: fondasi OPC ([`E01-opc-foundation.md`](./E01-opc-foundation.md)) **selesai**; tiket CI/keamanan lain tetap di [`E05-ci-cd.md`](./E05-ci-cd.md) dan [`E08-security.md`](./E08-security.md).
 3. Setelah itu, pilih path: DOCX-first (E02), XLSX-first (E03), atau PPTX-first (E04). Rekomendasi: **DOCX-first** karena fondasi sudah ada.
 
 ## Penomoran Ticket

@@ -7,6 +7,7 @@ Project: [**office**](https://github.com/triadmoko/office) — Office Open XML (
 | [Architecture](architecture.md) | OPC layout, packages, and layering |
 | [Formats](formats.md) | `.docx`, `.xlsx`, `.pptx` support matrix and limitations |
 | [Development](development.md) | Local workflow, CI, and links to contributor guides |
+| [Zip-bomb mitigation](security/zip-bomb-mitigation.md) | `archive/zip` behavior, limits, and `OpenWithOptions` |
 
 Also see the repository root:
 

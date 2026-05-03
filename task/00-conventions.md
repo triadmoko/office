@@ -42,7 +42,7 @@ Status     : To Do | In Progress | Review | Done
 
 | Epic ID | Title | Sprint | Points | File |
 |---|---|---|---|---|
-| **OFFICE-E01** | OPC Foundation Hardening | Sprint 0 | 34 | [E01](./E01-opc-foundation.md) |
+| **OFFICE-E01** | OPC Foundation Hardening *(selesai)* | Sprint 0 | 34 | [E01](./E01-opc-foundation.md) |
 | **OFFICE-E02** | DOCX MVP | Sprint 1–3 | 89 | [E02](./E02-docx-mvp.md) |
 | **OFFICE-E03** | XLSX MVP | Sprint 4–5 | 71 | [E03](./E03-xlsx-mvp.md) |
 | **OFFICE-E04** | PPTX MVP | Sprint 6–7 | 63 | [E04](./E04-pptx-mvp.md) |
