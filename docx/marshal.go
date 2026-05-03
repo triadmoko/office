@@ -197,6 +197,9 @@ func marshalRun(b *bytes.Buffer, r *wml.Run) {
 		if r.RPr.Strike {
 			b.WriteString(`<w:strike/>`)
 		}
+		if e := strings.TrimSpace(r.RPr.Emphasis); e != "" && !strings.EqualFold(e, "none") {
+			b.WriteString(`<w:em w:val="` + escapeAttr(e) + `"/>`)
+		}
 		if r.RPr.VertAlign == wml.VertAlignSuperscript {
 			b.WriteString(`<w:vertAlign w:val="superscript"/>`)
 		} else if r.RPr.VertAlign == wml.VertAlignSubscript {
@@ -208,6 +211,9 @@ func marshalRun(b *bytes.Buffer, r *wml.Run) {
 		if r.RPr.Color != "" {
 			b.WriteString(`<w:color w:val="` + escapeAttr(r.RPr.Color) + `"/>`)
 		}
+		if h := strings.TrimSpace(r.RPr.Highlight); h != "" && !strings.EqualFold(h, "none") {
+			b.WriteString(`<w:highlight w:val="` + escapeAttr(h) + `"/>`)
+		}
 		if r.RPr.FontName != "" {
 			b.WriteString(`<w:rFonts w:ascii="` + escapeAttr(r.RPr.FontName) + `" w:hAnsi="` + escapeAttr(r.RPr.FontName) + `"/>`)
 		}
@@ -217,6 +223,8 @@ func marshalRun(b *bytes.Buffer, r *wml.Run) {
 		switch {
 		case part.Tab:
 			b.WriteString(`<w:tab/>`)
+		case part.PageBreak:
+			b.WriteString(`<w:br w:type="page"/>`)
 		case part.Br:
 			b.WriteString(`<w:br/>`)
 		case part.SoftHyphen:
@@ -231,8 +239,9 @@ func marshalRun(b *bytes.Buffer, r *wml.Run) {
 }
 
 func emptyRunProps(r wml.RunProps) bool {
-	return !r.Bold && !r.Italic && !r.Underline && !r.Strike && r.VertAlign == wml.VertAlignBaseline &&
-		r.FontSizeHalf == 0 && r.Color == "" && r.FontName == ""
+	return !r.Bold && !r.Italic && !r.Underline && !r.Strike && strings.TrimSpace(r.Emphasis) == "" &&
+		r.VertAlign == wml.VertAlignBaseline &&
+		r.FontSizeHalf == 0 && r.Color == "" && strings.TrimSpace(r.Highlight) == "" && r.FontName == ""
 }
 
 func marshalTable(b *bytes.Buffer, t *wml.Table) {
@@ -247,6 +256,15 @@ func marshalTable(b *bytes.Buffer, t *wml.Table) {
 		writeI64Attr(b, "w:w", t.Props.Width.Value)
 		b.WriteString(` w:type="` + widthKind(t.Props.Width.Kind) + `"/></w:tblPr>`)
 	}
+	if len(t.Props.GridColWidths) > 0 {
+		b.WriteString(`<w:tblGrid>`)
+		for _, gw := range t.Props.GridColWidths {
+			b.WriteString(`<w:gridCol`)
+			writeI64Attr(b, "w:w", gw)
+			b.WriteString(`/>`)
+		}
+		b.WriteString(`</w:tblGrid>`)
+	}
 	if len(t.Unknown) > 0 {
 		b.Write(t.Unknown)
 	}
@@ -255,6 +273,7 @@ func marshalTable(b *bytes.Buffer, t *wml.Table) {
 			continue
 		}
 		b.WriteString(`<w:tr>`)
+		marshalTrPr(b, row)
 		for _, cell := range row.Cells {
 			if cell == nil {
 				continue
@@ -320,6 +339,34 @@ func marshalTcPr(b *bytes.Buffer, pr wml.TableCellProps) {
 		b.WriteString(`<w:shd w:val="` + escapeAttr(pr.Shading.Val) + `" w:fill="` + escapeAttr(pr.Shading.Fill) + `" w:color="` + escapeAttr(pr.Shading.Color) + `"/>`)
 	}
 	b.WriteString(`</w:tcPr>`)
+}
+
+func marshalTrPr(b *bytes.Buffer, row *wml.TableRow) {
+	if row == nil {
+		return
+	}
+	emit := row.HeightVal != 0 || row.HeightRule != wml.TrHeightUnset
+	if !emit {
+		return
+	}
+	rule := "atLeast"
+	switch row.HeightRule {
+	case wml.TrHeightExact:
+		rule = "exact"
+	case wml.TrHeightAtLeast:
+		rule = "atLeast"
+	case wml.TrHeightAuto:
+		rule = "auto"
+	default:
+		if row.HeightVal > 0 {
+			rule = "atLeast"
+		}
+	}
+	b.WriteString(`<w:trPr><w:trHeight`)
+	if row.HeightVal > 0 {
+		writeI64Attr(b, "w:val", row.HeightVal)
+	}
+	b.WriteString(` w:hRule="` + rule + `"/></w:trPr>`)
 }
 
 func writeCellBorder(b *bytes.Buffer, tag string, bd *wml.BorderDef) {

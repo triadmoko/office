@@ -3,7 +3,8 @@ package wml
 import "strings"
 
 // PlainText returns all logical run text in the document in reading order,
-// including text inside tables and nested tables.
+// including text inside tables and nested tables. Page breaks (w:br type page)
+// appear as ASCII form feed (U+000C) in run text; line breaks as newline.
 func (d *Document) PlainText() string {
 	if d == nil {
 		return ""

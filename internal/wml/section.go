@@ -40,5 +40,7 @@ type Section struct {
 	PageSize PageSize
 	Margins  Margins
 	Columns  Columns
-	Raw      []byte
+	// TypeVal is w:type/@w:val (ST_SectionMark): nextPage, continuous, nextColumn, evenPage, oddPage; empty = omit.
+	TypeVal string
+	Raw     []byte
 }

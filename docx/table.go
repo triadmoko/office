@@ -28,6 +28,39 @@ func (t *Table) Width() TableWidth {
 	return fromWMLTableWidth(t.t.Props.Width)
 }
 
+// SetWidth sets w:tblW for the whole table.
+// WidthDxa: Value is in twips (twentieths of a point).
+// WidthPct: Value is in fiftyths of a percent per ECMA-376 (5000 = 100% of usable page width).
+func (t *Table) SetWidth(w TableWidth) {
+	if t == nil || t.t == nil {
+		return
+	}
+	t.t.Props.Width = toWMLTableWidth(w)
+}
+
+// GridColWidths returns a copy of w:tblGrid column widths in twips (dxa), or nil if unset.
+func (t *Table) GridColWidths() []int64 {
+	if t == nil || t.t == nil || len(t.t.Props.GridColWidths) == 0 {
+		return nil
+	}
+	out := make([]int64, len(t.t.Props.GridColWidths))
+	copy(out, t.t.Props.GridColWidths)
+	return out
+}
+
+// SetGridColWidths sets w:tblGrid: one width in twips (dxa) per logical column.
+// Pass nil or empty slice to clear.
+func (t *Table) SetGridColWidths(widths []int64) {
+	if t == nil || t.t == nil {
+		return
+	}
+	if len(widths) == 0 {
+		t.t.Props.GridColWidths = nil
+		return
+	}
+	t.t.Props.GridColWidths = append([]int64(nil), widths...)
+}
+
 // SetBorder applies the same border style to selected sides on every cell (MVP).
 func (t *Table) SetBorder(mask BorderMask, st BorderStyle) {
 	if t == nil || t.t == nil {
@@ -94,6 +127,27 @@ func (tr *TableRow) Cells() []*TableCell {
 	return out
 }
 
+// SetHeight sets w:trPr/w:trHeight. twips is w:val. If twips > 0 and rule is [RowHeightUnset], AtLeast is used.
+func (tr *TableRow) SetHeight(twips int64, rule RowHeightRule) {
+	if tr == nil || tr.r == nil {
+		return
+	}
+	tr.r.HeightVal = twips
+	h := toWMLTrHeightRule(rule)
+	if twips > 0 && h == wml.TrHeightUnset {
+		h = wml.TrHeightAtLeast
+	}
+	tr.r.HeightRule = h
+}
+
+// Height returns row height in twips and rule.
+func (tr *TableRow) Height() (twips int64, rule RowHeightRule) {
+	if tr == nil || tr.r == nil {
+		return 0, RowHeightUnset
+	}
+	return tr.r.HeightVal, fromWMLTrHeightRule(tr.r.HeightRule)
+}
+
 // TableCell is w:tc.
 type TableCell struct {
 	c   *wml.TableCell
@@ -150,6 +204,14 @@ func (tc *TableCell) Width() TableWidth {
 		return TableWidth{}
 	}
 	return fromWMLTableWidth(tc.c.TcPr.Width)
+}
+
+// SetWidth sets w:tcW (same units as [Table.SetWidth]).
+func (tc *TableCell) SetWidth(w TableWidth) {
+	if tc == nil || tc.c == nil {
+		return
+	}
+	tc.c.TcPr.Width = toWMLTableWidth(w)
 }
 
 // Borders returns cell borders or nil.

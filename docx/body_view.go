@@ -61,12 +61,15 @@ func (b Body) AppendParagraph() *Paragraph {
 }
 
 // AppendTable adds a rows×cols table with one empty paragraph per cell.
+// The table width defaults to the full text area (100% pct); override with [Table.SetWidth] if needed.
 func (b Body) AppendTable(rows, cols int) *Table {
 	if b.doc == nil || rows < 1 || cols < 1 {
 		return nil
 	}
 	m, _ := b.doc.ensureLoaded()
 	tbl := &wml.Table{Rows: make([]*wml.TableRow, rows)}
+	// Default: lebar tabel = 100% area teks (w:tblW type pct; 5000 = 100% per ECMA-376).
+	tbl.Props.Width = wml.TableWidth{Value: 5000, Kind: wml.WidthPct}
 	for r := 0; r < rows; r++ {
 		row := &wml.TableRow{Cells: make([]*wml.TableCell, cols)}
 		for c := 0; c < cols; c++ {

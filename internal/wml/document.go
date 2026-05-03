@@ -85,7 +85,8 @@ type NumPr struct {
 type RunPart struct {
 	Text       string
 	Tab        bool
-	Br         bool
+	Br         bool // line break (w:br without type=page)
+	PageBreak  bool // w:br w:type="page"
 	SoftHyphen bool
 	Unknown    []byte
 }
@@ -100,15 +101,19 @@ type Run struct {
 
 // RunProps is w:rPr character formatting.
 type RunProps struct {
-	Bold         bool
-	Italic       bool
-	Underline    bool
-	Strike       bool
+	Bold      bool
+	Italic    bool
+	Underline bool
+	Strike    bool
+	// Emphasis is w:em/@w:val (East Asian emphasis mark): none, dot, comma, circle, underDot, … empty = unset.
+	Emphasis     string
 	VertAlign    VertAlignKind
 	FontSizeHalf int    // w:sz half-points; 0 = unset
 	Color        string // RRGGBB without #; empty = unset
-	FontName     string // ascii or hAnsi from w:rFonts
-	RawRPr       []byte // unparsed w:rPr for round-trip
+	// Highlight is w:highlight/@w:val (ST_HighlightColor): yellow, green, cyan, … empty = unset; "none" clears when parsing.
+	Highlight string
+	FontName  string // ascii or hAnsi from w:rFonts
+	RawRPr    []byte // unparsed w:rPr for round-trip
 }
 
 // VertAlignKind is w:vertAlign.
@@ -127,9 +132,22 @@ type Table struct {
 	Unknown []byte
 }
 
+// TrHeightRule is w:trHeight/@w:hRule.
+type TrHeightRule int
+
+const (
+	TrHeightUnset TrHeightRule = iota
+	TrHeightAuto
+	TrHeightExact
+	TrHeightAtLeast
+)
+
 // TableRow is w:tr.
 type TableRow struct {
 	Cells []*TableCell
+	// Row height (w:trPr/w:trHeight); HeightVal in twips; unset = omit.
+	HeightVal  int64
+	HeightRule TrHeightRule
 }
 
 // TableCell is w:tc.
@@ -196,5 +214,7 @@ type Shading struct {
 // TableProps is w:tblPr / tblGrid (103).
 type TableProps struct {
 	Width TableWidth
-	Raw   []byte
+	// GridColWidths is w:tblGrid: each entry is w:gridCol/@w:w in twips (dxa).
+	GridColWidths []int64
+	Raw           []byte
 }

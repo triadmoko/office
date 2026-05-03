@@ -93,6 +93,22 @@ func (rf *ResolvedFormat) RunBold() bool {
 	return rf.r.RPr.Bold
 }
 
+// RunEmphasis returns resolved w:em/@w:val, empty if unset.
+func (rf *ResolvedFormat) RunEmphasis() string {
+	if rf == nil || rf.r == nil {
+		return ""
+	}
+	return rf.r.RPr.Emphasis
+}
+
+// RunHighlight returns resolved w:highlight/@w:val, empty if unset.
+func (rf *ResolvedFormat) RunHighlight() string {
+	if rf == nil || rf.r == nil {
+		return ""
+	}
+	return rf.r.RPr.Highlight
+}
+
 // ParagraphAlignment returns resolved alignment.
 func (rf *ResolvedFormat) ParagraphAlignment() Alignment {
 	if rf == nil || rf.r == nil {

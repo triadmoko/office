@@ -60,6 +60,16 @@ const (
 	VMergeContinue
 )
 
+// RowHeightRule is w:trHeight/@w:hRule for a table row.
+type RowHeightRule int
+
+const (
+	RowHeightUnset RowHeightRule = iota
+	RowHeightAuto
+	RowHeightExact
+	RowHeightAtLeast
+)
+
 // WidthKind is tblW/tcW type.
 type WidthKind int
 
@@ -256,6 +266,32 @@ func toWMLVMerge(v VMergeKind) wml.VMergeKind {
 		return wml.VMergeContinue
 	default:
 		return wml.VMergeNone
+	}
+}
+
+func toWMLTrHeightRule(r RowHeightRule) wml.TrHeightRule {
+	switch r {
+	case RowHeightAuto:
+		return wml.TrHeightAuto
+	case RowHeightExact:
+		return wml.TrHeightExact
+	case RowHeightAtLeast:
+		return wml.TrHeightAtLeast
+	default:
+		return wml.TrHeightUnset
+	}
+}
+
+func fromWMLTrHeightRule(r wml.TrHeightRule) RowHeightRule {
+	switch r {
+	case wml.TrHeightAuto:
+		return RowHeightAuto
+	case wml.TrHeightExact:
+		return RowHeightExact
+	case wml.TrHeightAtLeast:
+		return RowHeightAtLeast
+	default:
+		return RowHeightUnset
 	}
 }
 

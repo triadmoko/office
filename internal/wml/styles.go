@@ -68,6 +68,9 @@ func mergeRunProps(overlay, base RunProps) RunProps {
 	if overlay.Strike {
 		out.Strike = true
 	}
+	if overlay.Emphasis != "" {
+		out.Emphasis = overlay.Emphasis
+	}
 	if overlay.VertAlign != VertAlignBaseline {
 		out.VertAlign = overlay.VertAlign
 	}
@@ -79,6 +82,9 @@ func mergeRunProps(overlay, base RunProps) RunProps {
 	}
 	if overlay.FontName != "" {
 		out.FontName = overlay.FontName
+	}
+	if overlay.Highlight != "" {
+		out.Highlight = overlay.Highlight
 	}
 	return out
 }

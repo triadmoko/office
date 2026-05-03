@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/triadmoko/office/internal/wml"
 )
@@ -33,6 +34,29 @@ type Columns struct {
 	Num        int
 	Sep        bool
 	EqualWidth bool
+}
+
+// SectionBreakKind selects w:type/@w:val (ST_SectionMark) inside w:sectPr.
+type SectionBreakKind int
+
+const (
+	// SectionBreakUnset leaves w:type unset when editing an existing section with [Section.SetBreakKind];
+	// for [Paragraph.SetSectionBreak], unset is treated as nextPage.
+	SectionBreakUnset SectionBreakKind = iota
+	SectionBreakNextPage
+	SectionBreakContinuous
+	SectionBreakNextColumn
+	SectionBreakEvenPage
+	SectionBreakOddPage
+)
+
+// SectionBreakConfig describes w:sectPr stored on this paragraph (pemecah bagian: properti untuk isi setelah paragraf ini).
+type SectionBreakConfig struct {
+	PageKind PageSizeKind
+	Orient   Orientation
+	Margins  Margins
+	// Break is w:type (nextPage, continuous, …). Zero defaults to nextPage for [Paragraph.SetSectionBreak].
+	Break SectionBreakKind
 }
 
 // Section is a document section (merged view over w:sectPr).
@@ -103,6 +127,23 @@ func (s *Section) Columns() Columns {
 	return Columns{Num: c.Num, Sep: c.Sep, EqualWidth: c.EqualWidth}
 }
 
+// BreakKind returns w:type/@w:val as [SectionBreakKind], or [SectionBreakUnset] if absent.
+func (s *Section) BreakKind() SectionBreakKind {
+	if s == nil {
+		return SectionBreakUnset
+	}
+	return sectionBreakKindFromWML(s.sec.TypeVal)
+}
+
+// SetBreakKind sets w:type for this section (empty [SectionBreakUnset] clears w:type on next marshal).
+func (s *Section) SetBreakKind(k SectionBreakKind) {
+	if s == nil || s.doc == nil {
+		return
+	}
+	s.sec.TypeVal = sectionBreakKindToWML(k)
+	s.apply()
+}
+
 // SetPageSize applies a standard page size (twips from ECMA defaults).
 func (s *Section) SetPageSize(kind PageSizeKind) {
 	if s == nil || s.doc == nil {
@@ -148,15 +189,109 @@ func (s *Section) apply() {
 	if m == nil {
 		return
 	}
-	// Only the first section maps to body-level sectPr for MVP.
-	if s.idx == 0 {
-		m.Body.SectPr = marshalSectPrBytes(s.sec)
+	sinks := sectPrWriteTargets(m)
+	if s.idx < 0 || s.idx >= len(sinks) {
+		return
+	}
+	data := marshalSectPrBytes(s.sec)
+	t := sinks[s.idx]
+	if t.body {
+		m.Body.SectPr = data
+	} else {
+		t.para.PPr.SectPr = data
+	}
+}
+
+type sectSink struct {
+	para *wml.Paragraph
+	body bool
+}
+
+// sectPrWriteTargets mirrors [wml.SectionsFromDocument] storage order (paragraph sectPr in preorder, then body).
+func sectPrWriteTargets(m *wml.Document) []sectSink {
+	if m == nil {
+		return nil
+	}
+	var sinks []sectSink
+	for _, p := range wml.CollectParagraphsPreorder(&m.Body) {
+		if len(p.PPr.SectPr) > 0 {
+			sinks = append(sinks, sectSink{para: p})
+		}
+	}
+	if len(m.Body.SectPr) > 0 {
+		sinks = append(sinks, sectSink{body: true})
+	} else if len(sinks) == 0 {
+		sinks = append(sinks, sectSink{body: true})
+	}
+	return sinks
+}
+
+func sectionFromBreakConfig(c SectionBreakConfig) wml.Section {
+	var sec wml.Section
+	switch c.PageKind {
+	case PageSizeLetter:
+		sec.PageSize.Width, sec.PageSize.Height = wml.PageLetterW, wml.PageLetterH
+	default:
+		sec.PageSize.Width, sec.PageSize.Height = wml.PageA4W, wml.PageA4H
+	}
+	sec.PageSize.Orient = wml.Orientation(c.Orient)
+	if c.Orient == Landscape && sec.PageSize.Width < sec.PageSize.Height {
+		sec.PageSize.Width, sec.PageSize.Height = sec.PageSize.Height, sec.PageSize.Width
+	}
+	sec.Margins = wml.Margins{
+		Top: c.Margins.Top, Bottom: c.Margins.Bottom, Left: c.Margins.Left, Right: c.Margins.Right,
+		Header: c.Margins.Header, Footer: c.Margins.Footer, Gutter: c.Margins.Gutter,
+	}
+	sec.Columns = wml.Columns{Num: 1, Sep: false, EqualWidth: false}
+	sec.TypeVal = sectionBreakKindToWML(c.Break)
+	if sec.TypeVal == "" {
+		sec.TypeVal = "nextPage"
+	}
+	return sec
+}
+
+func sectionBreakKindToWML(k SectionBreakKind) string {
+	switch k {
+	case SectionBreakNextPage:
+		return "nextPage"
+	case SectionBreakContinuous:
+		return "continuous"
+	case SectionBreakNextColumn:
+		return "nextColumn"
+	case SectionBreakEvenPage:
+		return "evenPage"
+	case SectionBreakOddPage:
+		return "oddPage"
+	case SectionBreakUnset:
+		return ""
+	default:
+		return ""
+	}
+}
+
+func sectionBreakKindFromWML(s string) SectionBreakKind {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "nextpage":
+		return SectionBreakNextPage
+	case "continuous":
+		return SectionBreakContinuous
+	case "nextcolumn":
+		return SectionBreakNextColumn
+	case "evenpage":
+		return SectionBreakEvenPage
+	case "oddpage":
+		return SectionBreakOddPage
+	default:
+		return SectionBreakUnset
 	}
 }
 
 func marshalSectPrBytes(sec wml.Section) []byte {
 	var b bytes.Buffer
 	b.WriteString(`<w:sectPr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">`)
+	if v := strings.TrimSpace(sec.TypeVal); v != "" {
+		b.WriteString(`<w:type w:val="` + escapeAttr(v) + `"/>`)
+	}
 	ori := "portrait"
 	if sec.PageSize.Orient == wml.Landscape {
 		ori = "landscape"

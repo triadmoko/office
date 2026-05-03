@@ -398,7 +398,12 @@ func parseRun(dec *xml.Decoder, start xml.StartElement) (*Run, error) {
 					return nil, err
 				}
 			case "br":
-				run.Parts = append(run.Parts, RunPart{Br: true})
+				typ := strings.ToLower(strings.TrimSpace(attrLocal(t.Attr, "type")))
+				if typ == "page" {
+					run.Parts = append(run.Parts, RunPart{PageBreak: true})
+				} else {
+					run.Parts = append(run.Parts, RunPart{Br: true})
+				}
 				if err := skipSubtree(dec, t); err != nil {
 					return nil, err
 				}
@@ -470,6 +475,8 @@ func (r *Run) RebuildText() {
 		switch {
 		case ch.Tab:
 			b.WriteByte('\t')
+		case ch.PageBreak:
+			b.WriteByte('\f')
 		case ch.Br:
 			b.WriteByte('\n')
 		case ch.SoftHyphen:
@@ -553,6 +560,14 @@ func parseRPr(dec *xml.Decoder, start xml.StartElement, run *Run) error {
 				if err := skipSubtree(dec, t); err != nil {
 					return err
 				}
+			case "em":
+				v := strings.TrimSpace(valAttr(t.Attr))
+				if v != "" && !strings.EqualFold(v, "none") {
+					run.RPr.Emphasis = v
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
 			case "sz", "szCs":
 				if v := valAttr(t.Attr); v != "" {
 					if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -568,6 +583,16 @@ func parseRPr(dec *xml.Decoder, start xml.StartElement, run *Run) error {
 				run.RPr.Color = strings.TrimSpace(valAttr(t.Attr))
 				if run.RPr.Color == "auto" {
 					run.RPr.Color = ""
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "highlight":
+				h := strings.TrimSpace(valAttr(t.Attr))
+				if strings.EqualFold(h, "none") {
+					run.RPr.Highlight = ""
+				} else if h != "" {
+					run.RPr.Highlight = h
 				}
 				if err := skipSubtree(dec, t); err != nil {
 					return err
@@ -650,11 +675,9 @@ func parseTable(dec *xml.Decoder, start xml.StartElement) (*Table, error) {
 					return nil, err
 				}
 			case "tblGrid":
-				sub, err := captureSubtree(dec, t)
-				if err != nil {
+				if err := parseTblGrid(dec, t, tbl); err != nil {
 					return nil, err
 				}
-				tbl.Unknown = append(tbl.Unknown, sub...)
 			default:
 				sub, err := captureSubtree(dec, t)
 				if err != nil {
@@ -700,6 +723,77 @@ func parseTblPr(dec *xml.Decoder, start xml.StartElement, tbl *Table) error {
 	}
 }
 
+func parseTblGrid(dec *xml.Decoder, start xml.StartElement, tbl *Table) error {
+	_ = start
+	tbl.Props.GridColWidths = nil
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "gridCol" {
+				tbl.Props.GridColWidths = append(tbl.Props.GridColWidths, twipAttr(attrLocal(t.Attr, "w")))
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := skipSubtree(dec, t); err != nil {
+				return err
+			}
+		case xml.EndElement:
+			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "tblGrid" {
+				return nil
+			}
+		case xml.CharData:
+			// ignore
+		}
+	}
+}
+
+func parseTrPr(dec *xml.Decoder, start xml.StartElement, row *TableRow) error {
+	_ = start
+	for {
+		tok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		switch t := tok.(type) {
+		case xml.StartElement:
+			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "trHeight" {
+				row.HeightVal = twipAttr(valAttr(t.Attr))
+				switch strings.ToLower(strings.TrimSpace(attrLocal(t.Attr, "hRule"))) {
+				case "exact":
+					row.HeightRule = TrHeightExact
+				case "atleast":
+					row.HeightRule = TrHeightAtLeast
+				case "auto":
+					row.HeightRule = TrHeightAuto
+				default:
+					if row.HeightVal > 0 {
+						row.HeightRule = TrHeightAtLeast
+					}
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := skipSubtree(dec, t); err != nil {
+				return err
+			}
+		case xml.EndElement:
+			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "trPr" {
+				return nil
+			}
+		case xml.CharData:
+			// ignore
+		}
+	}
+}
+
 func parseTableRow(dec *xml.Decoder, start xml.StartElement) (*TableRow, error) {
 	row := &TableRow{}
 	for {
@@ -715,6 +809,10 @@ func parseTableRow(dec *xml.Decoder, start xml.StartElement) (*TableRow, error) 
 					return nil, err
 				}
 				row.Cells = append(row.Cells, cell)
+			} else if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "trPr" {
+				if err := parseTrPr(dec, t, row); err != nil {
+					return nil, err
+				}
 			} else if isWML(t.Name.Space, t.Name.Local) {
 				if err := skipSubtree(dec, t); err != nil {
 					return nil, err

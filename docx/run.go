@@ -8,12 +8,25 @@ type Run struct {
 	doc *Document
 }
 
-// Text returns logical text (w:t plus tab, line break, soft hyphen).
+// Text returns logical text (w:t plus tab, line break, form feed U+000C for page break, soft hyphen).
 func (r *Run) Text() string {
 	if r == nil || r.x == nil {
 		return ""
 	}
 	return r.x.Text
+}
+
+// ContainsPageBreak reports whether this run has w:br w:type="page".
+func (r *Run) ContainsPageBreak() bool {
+	if r == nil || r.x == nil {
+		return false
+	}
+	for _, p := range r.x.Parts {
+		if p.PageBreak {
+			return true
+		}
+	}
+	return false
 }
 
 // Bold reports w:b in w:rPr.
@@ -48,6 +61,14 @@ func (r *Run) Strike() bool {
 	return r.x.RPr.Strike
 }
 
+// Emphasis returns w:em/@w:val (East Asian emphasis mark), empty if unset.
+func (r *Run) Emphasis() string {
+	if r == nil || r.x == nil {
+		return ""
+	}
+	return r.x.RPr.Emphasis
+}
+
 // SubSuperscript returns vertical alignment (baseline, superscript, subscript).
 func (r *Run) SubSuperscript() VertAlign {
 	if r == nil || r.x == nil {
@@ -70,6 +91,14 @@ func (r *Run) Color() string {
 		return ""
 	}
 	return r.x.RPr.Color
+}
+
+// Highlight returns w:highlight/@w:val (ST_HighlightColor token, e.g. "yellow"), empty if unset.
+func (r *Run) Highlight() string {
+	if r == nil || r.x == nil {
+		return ""
+	}
+	return r.x.RPr.Highlight
 }
 
 // FontName returns w:rFonts ascii/hAnsi.
@@ -104,6 +133,22 @@ func (r *Run) SetUnderline(v bool) {
 	r.x.RPr.Underline = v
 }
 
+// SetStrike sets w:strike (single strikethrough). Marshal emits w:strike only (not w:dstrike).
+func (r *Run) SetStrike(v bool) {
+	if r == nil || r.x == nil {
+		return
+	}
+	r.x.RPr.Strike = v
+}
+
+// SetEmphasis sets w:em (East Asian emphasis mark). Use OOXML ST_Em values, e.g. "dot", "comma", "circle", "underDot", or "" to clear.
+func (r *Run) SetEmphasis(val string) {
+	if r == nil || r.x == nil {
+		return
+	}
+	r.x.RPr.Emphasis = val
+}
+
 // SetFont sets w:rFonts ascii and hAnsi.
 func (r *Run) SetFont(name string) {
 	if r == nil || r.x == nil {
@@ -126,4 +171,20 @@ func (r *Run) SetColor(hex string) {
 		return
 	}
 	r.x.RPr.Color = hex
+}
+
+// SetHighlight sets w:highlight (text marker / sorot). Use OOXML ST_HighlightColor tokens, e.g. "yellow", "green", "cyan", or "" to clear.
+func (r *Run) SetHighlight(val string) {
+	if r == nil || r.x == nil {
+		return
+	}
+	r.x.RPr.Highlight = val
+}
+
+// SetSubSuperscript sets w:vertAlign: [VertAlignSuperscript], [VertAlignSubscript], or [VertAlignBaseline].
+func (r *Run) SetSubSuperscript(v VertAlign) {
+	if r == nil || r.x == nil {
+		return
+	}
+	r.x.RPr.VertAlign = toWMLVert(v)
 }
