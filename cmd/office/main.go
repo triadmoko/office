@@ -9,8 +9,9 @@ import (
 	"github.com/triadmoko/office/docx"
 )
 
-// contoh DOCX dalam satu fungsi: sampul + TOC + pemecah bagian (next page) + isi.
-// Daftar isi statis (bukan bidang TOC Word). Header + footer: bidang PAGE/NUMPAGES (NewDocument+Save).
+// contoh DOCX dalam satu fungsi: sampul + bidang TOC Word + pemecah bagian (next page) + isi.
+// Daftar isi = complex field TOC (Update Field di Word). Judul isi memakai gaya Heading1–3 + w:outlineLvl.
+// Header + footer: bidang PAGE/NUMPAGES (NewDocument+Save).
 
 func main() {
 	out := flag.String("o", "office-sample.docx", "path file .docx keluaran")
@@ -74,41 +75,59 @@ func writeSampleDocx(path string) error {
 	meta.AppendRun("Disusun untuk demonstrasi API")
 	ver := d.Body().AppendParagraph()
 	ver.SetAlignment(docx.AlignCenter)
-	ver.AppendRun("Setelah TOC: SetSectionBreak(nextPage) memisahkan bagian depan dan isi utama.")
+	ver.AppendRun("Setelah daftar isi (bidang TOC): SetSectionBreak(nextPage) memisahkan bagian depan dan isi utama.")
 
 	pCoverEnd := d.Body().AppendParagraph()
 	pCoverEnd.SetAlignment(docx.AlignCenter)
 	pCoverEnd.AppendRun("Halaman berikutnya: daftar isi.")
 	pCoverEnd.AppendPageBreak()
 
-	// ----- Daftar isi (manual) -----
+	// ----- Daftar isi (bidang TOC Word) -----
 	hTOC := d.Body().AppendParagraph()
 	hTOC.SetSpacing(docx.Spacing{After: 240})
 	hTOCr := hTOC.AppendRun("Daftar isi")
 	hTOCr.SetBold(true)
 	hTOCr.SetSize(32)
 	pTOCIntro := d.Body().AppendParagraph()
-	pTOCIntro.SetSpacing(docx.Spacing{After: 180})
-	pTOCIntro.AppendRun("Entri manual (titik). TOC otomatis Word = Tier 3.")
+	pTOCIntro.SetSpacing(docx.Spacing{After: 120})
+	pTOCIntro.AppendRun(
+		"Di bawah: bidang TOC (\\o level 1–3, \\h, \\z). Microsoft Word biasanya memperbarui bidang saat membuka file atau lewat klik kanan → Perbarui bidang. WPS Writer / LibreOffice sering tidak mengevaluasi bidang TOC seperti Word — yang tampak hanya teks placeholder; untuk daftar otomatis penuh buka sekali di Word, atau gunakan ringkasan bab (teks biasa) di bawah.",
+	)
+	pTOCField := d.Body().AppendParagraph()
+	pTOCField.SetSpacing(docx.Spacing{After: 120})
+	pTOCField.AppendTOCField(docx.TOCFieldOptions{
+		OutlineLevels: "1-3",
+	})
 
-	tocEntries := []struct{ title, page string }{
+	pTOCFallbackTitle := d.Body().AppendParagraph()
+	pTOCFallbackTitle.SetSpacing(docx.Spacing{Before: 120, After: 60})
+	rFall := pTOCFallbackTitle.AppendRun("Ringkasan bab (fallback untuk WPS/LibreOffice)")
+	rFall.SetBold(true)
+	pTOCFallbackNote := d.Body().AppendParagraph()
+	pTOCFallbackNote.SetSpacing(docx.Spacing{After: 100})
+	pTOCFallbackNote.AppendRun(
+		"Pustaka Go tidak menghitung layout halaman. Nomor di kanan hanya ilustrasi statis (bukan hasil layout). Nomor halaman sejati muncul di bidang TOC setelah dokumen dibuka dan di-layout di Microsoft Word (Perbarui bidang).",
+	)
+	// Ilustrasi manual mirip TOC bertitik; angka halaman tidak dihitung dari isi dokumen.
+	tocFallback := []struct{ title, page string }{
 		{"1. Pendahuluan", "3"},
-		{"2. Format paragraf & perataan", "3"},
-		{"3. Format run (tebal, warna, …)", "4"},
+		{"2. Format paragraf", "3"},
+		{"2.1 Subjudul (Heading2)", "3"},
+		{"3. Format run", "4"},
 		{"4. Daftar", "4"},
 		{"5. Tabel", "4"},
 		{"6. Pagination & pemisah OOXML", "6"},
 	}
 	const tocWidth = 62
-	for _, e := range tocEntries {
-		p := d.Body().AppendParagraph()
-		p.SetSpacing(docx.Spacing{After: 120})
+	for _, e := range tocFallback {
+		pr := d.Body().AppendParagraph()
+		pr.SetSpacing(docx.Spacing{After: 60})
 		dots := tocWidth - len(e.title) - len(e.page)
 		if dots < 3 {
 			dots = 3
 		}
 		line := e.title + " " + strings.Repeat(".", dots) + " " + e.page
-		r := p.AppendRun(line)
+		r := pr.AppendRun(line)
 		r.SetSize(22)
 	}
 
@@ -135,8 +154,9 @@ func writeSampleDocx(path string) error {
 		sec.SetPageNumberStart(&mainStart)
 	}
 
-	// ----- Isi utama -----
+	// ----- Isi utama (judul bab: gaya Heading + outline agar TOC Word terisi) -----
 	h1 := d.Body().AppendParagraph()
+	h1.SetStyleID("Heading1")
 	h1.SetSpacing(docx.Spacing{Before: 120, After: 200})
 	h1r := h1.AppendRun("1. Pendahuluan")
 	h1r.SetBold(true)
@@ -152,10 +172,16 @@ func writeSampleDocx(path string) error {
 	}
 
 	h2 := d.Body().AppendParagraph()
+	h2.SetStyleID("Heading1")
 	h2.SetSpacing(docx.Spacing{Before: 240, After: 160})
 	h2r := h2.AppendRun("2. Format paragraf")
 	h2r.SetBold(true)
 	h2r.SetSize(28)
+	h2sub := d.Body().AppendParagraph()
+	h2sub.SetStyleID("Heading2")
+	h2sub.SetSpacing(docx.Spacing{Before: 60, After: 120})
+	h2sub.AppendRun("2.1 Subjudul (Heading2)").SetBold(true)
+
 	pInd := d.Body().AppendParagraph()
 	pInd.SetIndent(docx.Indent{Left: 720, FirstLine: 720})
 	pInd.SetSpacing(docx.Spacing{After: 240})
@@ -183,6 +209,7 @@ func writeSampleDocx(path string) error {
 	pPg.AppendPageBreak()
 
 	h3 := d.Body().AppendParagraph()
+	h3.SetStyleID("Heading1")
 	h3.SetSpacing(docx.Spacing{After: 160})
 	h3r := h3.AppendRun("3. Format run")
 	h3r.SetBold(true)
@@ -219,6 +246,7 @@ func writeSampleDocx(path string) error {
 	pRun.AppendRun("O.")
 
 	h4 := d.Body().AppendParagraph()
+	h4.SetStyleID("Heading1")
 	h4.SetSpacing(docx.Spacing{Before: 240, After: 160})
 	h4r := h4.AppendRun("4. Daftar")
 	h4r.SetBold(true)
@@ -234,6 +262,7 @@ func writeSampleDocx(path string) error {
 	nl.AppendItem("Langkah dua")
 
 	h5 := d.Body().AppendParagraph()
+	h5.SetStyleID("Heading1")
 	h5.SetSpacing(docx.Spacing{Before: 240, After: 160})
 	h5r := h5.AppendRun("5. Tabel")
 	h5r.SetBold(true)
@@ -261,6 +290,7 @@ func writeSampleDocx(path string) error {
 
 	// ----- Pagination & marka OOXML (w:pPr, w:br, w:trPr) -----
 	h6 := d.Body().AppendParagraph()
+	h6.SetStyleID("Heading1")
 	h6.SetSpacing(docx.Spacing{Before: 240, After: 160})
 	h6r := h6.AppendRun("6. Pagination & pemisah OOXML")
 	h6r.SetBold(true)
@@ -300,7 +330,7 @@ func writeSampleDocx(path string) error {
 
 	pEnd := d.Body().AppendParagraph()
 	pEnd.SetSpacing(docx.Spacing{Before: 360})
-	pEnd.AppendRun("Selesai — periksa struktur: sampul + TOC (section pertama), lalu section break next page, lalu isi, pagination OOXML, SetStripLayoutHints untuk save bersih dari lastRenderedPageBreak.")
+	pEnd.AppendRun("Selesai — periksa struktur: sampul + bidang TOC (Perbarui bidang di Word), section break next page, isi dengan Heading1, pagination OOXML, SetStripLayoutHints untuk save bersih dari lastRenderedPageBreak.")
 
 	return d.SaveFile(path)
 }

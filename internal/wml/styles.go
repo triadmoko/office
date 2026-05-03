@@ -16,7 +16,10 @@ type Style struct {
 	LinkedStyle string
 	RPr         RunProps
 	PPr         ParagraphProps
-	Raw         []byte // full w:style element for round-trip
+	// OutlineLevel, when non-nil, is emitted as w:pPr/w:outlineLvl on paragraph styles (0–8).
+	// Used so TOC \\o and outline-based navigation work in Word.
+	OutlineLevel *int
+	Raw          []byte // full w:style element for round-trip
 }
 
 // ResolvedFormat is flattened character + paragraph formatting (OFFICE-104).

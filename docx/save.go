@@ -62,6 +62,9 @@ func (d *Document) Save(w io.Writer) error {
 	}
 	override["/docProps/core.xml"] = marshalCoreProps()
 	override["/docProps/app.xml"] = marshalAppProps()
+	if d.fromNew {
+		override["/word/settings.xml"] = marshalWordSettingsXML()
+	}
 
 	if len(d.partData) > 0 {
 		// Opened package: preserve unrelated parts; replace main, styles, numbering, props.

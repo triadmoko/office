@@ -15,6 +15,7 @@ const (
 	relTypeNumbering = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering"
 	relTypeFooter    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
 	relTypeHeader    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
+	relTypeSettings  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings"
 )
 
 // Document is an opened or newly built .docx (WordprocessingML) package.

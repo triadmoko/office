@@ -54,6 +54,14 @@ func (p *Paragraph) StyleID() string {
 	return p.x.PPr.StyleID
 }
 
+// SetStyleID sets w:pStyle/@w:val (e.g. "Heading1" for outline headings used by Word TOC fields).
+func (p *Paragraph) SetStyleID(id string) {
+	if p == nil || p.x == nil {
+		return
+	}
+	p.x.PPr.StyleID = id
+}
+
 // NumberingRef returns w:numPr or nil.
 func (p *Paragraph) NumberingRef() *NumPr {
 	if p == nil || p.x == nil {

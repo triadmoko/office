@@ -3,6 +3,7 @@ package docx
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 
 	"github.com/triadmoko/office/internal/wml"
 )
@@ -69,6 +70,14 @@ func marshalOneStyle(b *bytes.Buffer, st *wml.Style) error {
 	}
 	if st.LinkedStyle != "" {
 		b.WriteString(`<w:link w:val="` + escapeAttr(st.LinkedStyle) + `"/>`)
+	}
+	if typ == "paragraph" && st.OutlineLevel != nil {
+		olv := *st.OutlineLevel
+		if olv >= 0 && olv <= 8 {
+			b.WriteString(`<w:pPr><w:outlineLvl w:val="`)
+			b.WriteString(strconv.Itoa(olv))
+			b.WriteString(`"/></w:pPr>`)
+		}
 	}
 	if !emptyRunProps(st.RPr) {
 		b.WriteString(`<w:rPr>`)

@@ -87,6 +87,11 @@ func newDocumentRels(withNumbering, withFooter, withHeader bool) (*ooxml.Relatio
 		headerRID = alloc()
 		rels = append(rels, ooxml.Relationship{ID: headerRID, Type: relTypeHeader, Target: "header1.xml"})
 	}
+	rels = append(rels, ooxml.Relationship{
+		ID:     alloc(),
+		Type:   relTypeSettings,
+		Target: "settings.xml",
+	})
 	return &ooxml.Relationships{Relationship: rels}, footerRID, headerRID
 }
 
