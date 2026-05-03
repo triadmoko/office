@@ -46,3 +46,16 @@ func TestParseTableTblGridAndTrHeight(t *testing.T) {
 		t.Fatalf("row: %+v", tbl.Rows[0])
 	}
 }
+
+func TestParseSectPrPgNumType(t *testing.T) {
+	const frag = `<w:sectPr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">` +
+		`<w:pgNumType w:start="7" w:fmt="lowerRoman"/>` +
+		`<w:pgSz w:w="11906" w:h="16838"/></w:sectPr>`
+	sec := ParseSectPr([]byte(frag))
+	if !sec.PageNumStartSet || sec.PageNumStart != 7 {
+		t.Fatalf("start: set=%v n=%d", sec.PageNumStartSet, sec.PageNumStart)
+	}
+	if sec.PageNumFmt != "lowerRoman" {
+		t.Fatalf("fmt: %q", sec.PageNumFmt)
+	}
+}

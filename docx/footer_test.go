@@ -55,3 +55,10 @@ func TestMarshalFooterPageXMLDefault(t *testing.T) {
 		t.Fatalf("default footer: %s", xml)
 	}
 }
+
+func TestMarshalHeaderPageXMLDefault(t *testing.T) {
+	xml := string(marshalHeaderPageXML(""))
+	if !strings.Contains(xml, "<w:hdr") || !strings.Contains(xml, `w:jc w:val="center"`) || !strings.Contains(xml, " PAGE ") {
+		t.Fatalf("default header: %s", xml)
+	}
+}

@@ -22,13 +22,21 @@ func (d *Document) Save(w io.Writer) error {
 	if d.footerPageNumber && !d.fromNew {
 		return ErrFooterPageNumberOpenDoc
 	}
+	if d.headerPageNumber && !d.fromNew {
+		return ErrHeaderPageNumberOpenDoc
+	}
 	numXML := MarshalNumberingXML(d.numbering)
 	withNum := numXML != nil
-	footerRID := ""
-	if d.footerPageNumber {
-		footerRID = documentFooterRelID(withNum)
+	var rels *ooxml.Relationships
+	footerRID, headerRID := "", ""
+	if d.fromNew {
+		rels, footerRID, headerRID = newDocumentRels(withNum, d.footerPageNumber, d.headerPageNumber)
 	}
-	docXML, err := MarshalDocumentXML(d.wmlDoc, MarshalDocumentOpts{FooterRelationshipID: footerRID})
+	docXML, err := MarshalDocumentXML(d.wmlDoc, MarshalDocumentOpts{
+		FooterRelationshipID: footerRID,
+		HeaderRelationshipID: headerRID,
+		StripLayoutHints:     d.stripLayoutHints,
+	})
 	if err != nil {
 		return fmt.Errorf("docx save: marshal document: %w", err)
 	}
@@ -48,6 +56,9 @@ func (d *Document) Save(w io.Writer) error {
 	}
 	if d.footerPageNumber {
 		override["/word/footer1.xml"] = marshalFooterPageXML(d.footerPageTemplate)
+	}
+	if d.headerPageNumber {
+		override["/word/header1.xml"] = marshalHeaderPageXML(d.headerPageTemplate)
 	}
 	override["/docProps/core.xml"] = marshalCoreProps()
 	override["/docProps/app.xml"] = marshalAppProps()
@@ -90,7 +101,7 @@ func (d *Document) Save(w io.Writer) error {
 		if err := pw.AddRelationships("", newRootRels()); err != nil {
 			return err
 		}
-		if err := pw.AddRelationships(d.main, newDocumentRels(numXML != nil, d.footerPageNumber)); err != nil {
+		if err := pw.AddRelationships(d.main, rels); err != nil {
 			return err
 		}
 	}
@@ -213,6 +224,8 @@ func guessContentType(part string) string {
 		return ooxml.CTWordWebSettings
 	case "/word/footer1.xml":
 		return ooxml.CTWordFooter
+	case "/word/header1.xml":
+		return ooxml.CTWordHeader
 	case "/docProps/core.xml":
 		return ooxml.CTCoreProps
 	case "/docProps/app.xml":

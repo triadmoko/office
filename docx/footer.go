@@ -9,11 +9,17 @@ import (
 	"github.com/triadmoko/office/internal/wml"
 )
 
-// Placeholder teks untuk [SetFooterPageNumberTemplate] (case-sensitive).
+// Placeholder teks untuk [SetFooterPageNumberTemplate] / [SetHeaderPageNumberTemplate] (case-sensitive).
 const (
 	FooterPlaceholderPage     = "{{PAGE}}"
 	FooterPlaceholderNumPages = "{{NUMPAGES}}"
 )
+
+// HeaderPlaceholderPage matches [FooterPlaceholderPage] (token yang sama untuk header).
+const HeaderPlaceholderPage = FooterPlaceholderPage
+
+// HeaderPlaceholderNumPages matches [FooterPlaceholderNumPages].
+const HeaderPlaceholderNumPages = FooterPlaceholderNumPages
 
 type footerSegKind int
 
@@ -58,30 +64,30 @@ func parseFooterLayout(s string) []footerSeg {
 	return out
 }
 
-// documentFooterRelID returns the relationship id used for footer1.xml in document.xml.rels
-// (depends on whether numbering.xml is present).
-func documentFooterRelID(withNumbering bool) string {
-	if withNumbering {
-		return "rId3"
-	}
-	return "rId2"
-}
-
-func newDocumentRels(withNumbering, withFooter bool) *ooxml.Relationships {
+// newDocumentRels builds /word/document.xml.rels for a new package; returns relationship ids used in w:sectPr.
+func newDocumentRels(withNumbering, withFooter, withHeader bool) (*ooxml.Relationships, string, string) {
+	var footerRID, headerRID string
 	rels := []ooxml.Relationship{
 		{ID: "rId1", Type: relTypeStyles, Target: "styles.xml"},
 	}
+	next := 2
+	alloc := func() string {
+		s := "rId" + strconv.Itoa(next)
+		next++
+		return s
+	}
 	if withNumbering {
-		rels = append(rels, ooxml.Relationship{ID: "rId2", Type: relTypeNumbering, Target: "numbering.xml"})
+		rels = append(rels, ooxml.Relationship{ID: alloc(), Type: relTypeNumbering, Target: "numbering.xml"})
 	}
 	if withFooter {
-		rels = append(rels, ooxml.Relationship{
-			ID:     documentFooterRelID(withNumbering),
-			Type:   relTypeFooter,
-			Target: "footer1.xml",
-		})
+		footerRID = alloc()
+		rels = append(rels, ooxml.Relationship{ID: footerRID, Type: relTypeFooter, Target: "footer1.xml"})
 	}
-	return &ooxml.Relationships{Relationship: rels}
+	if withHeader {
+		headerRID = alloc()
+		rels = append(rels, ooxml.Relationship{ID: headerRID, Type: relTypeHeader, Target: "header1.xml"})
+	}
+	return &ooxml.Relationships{Relationship: rels}, footerRID, headerRID
 }
 
 // marshalFooterPageXML builds footer1.xml: teks bebas + bidang PAGE / NUMPAGES sesuai layout.
@@ -95,6 +101,27 @@ func marshalFooterPageXML(layout string) []byte {
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
 	b.WriteString(`<w:ftr xmlns:w="` + nsW + `" xmlns:r="` + nsR + `">`)
 	b.WriteString(`<w:p><w:pPr><w:jc w:val="right"/></w:pPr>`)
+	writeFooterHeaderRuns(&b, segs)
+	b.WriteString(`</w:p></w:ftr>`)
+	return []byte(b.String())
+}
+
+// marshalHeaderPageXML builds header1.xml (default paragraph rata tengah).
+func marshalHeaderPageXML(layout string) []byte {
+	if strings.TrimSpace(layout) == "" {
+		layout = "Hal. " + HeaderPlaceholderPage
+	}
+	segs := parseFooterLayout(layout)
+	var b strings.Builder
+	b.WriteString(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`)
+	b.WriteString(`<w:hdr xmlns:w="` + nsW + `" xmlns:r="` + nsR + `">`)
+	b.WriteString(`<w:p><w:pPr><w:jc w:val="center"/></w:pPr>`)
+	writeFooterHeaderRuns(&b, segs)
+	b.WriteString(`</w:p></w:hdr>`)
+	return []byte(b.String())
+}
+
+func writeFooterHeaderRuns(b *strings.Builder, segs []footerSeg) {
 	for _, seg := range segs {
 		switch seg.kind {
 		case footerSegText:
@@ -110,8 +137,6 @@ func marshalFooterPageXML(layout string) []byte {
 			b.WriteString(complexFieldNUMPAGES())
 		}
 	}
-	b.WriteString(`</w:p></w:ftr>`)
-	return []byte(b.String())
 }
 
 func complexFieldPAGE() string {
@@ -130,8 +155,9 @@ func complexFieldNUMPAGES() string {
 		`<w:r><w:fldChar w:fldCharType="end"/></w:r>`
 }
 
-func injectFooterReferenceIntoSectPr(sect []byte, rid string) []byte {
-	if rid == "" || len(sect) == 0 {
+// injectSectPrHeaderFooterRefs inserts w:headerReference and w:footerReference before </w:sectPr> (header first).
+func injectSectPrHeaderFooterRefs(sect []byte, headerRID, footerRID string) []byte {
+	if headerRID == "" && footerRID == "" {
 		return sect
 	}
 	needle := []byte("</w:sectPr>")
@@ -139,17 +165,32 @@ func injectFooterReferenceIntoSectPr(sect []byte, rid string) []byte {
 	if idx < 0 {
 		return sect
 	}
-	ins := []byte(`<w:footerReference w:type="default" r:id="` + escapeAttr(rid) + `"/>`)
-	out := make([]byte, 0, len(sect)+len(ins))
+	var ins strings.Builder
+	if headerRID != "" {
+		ins.WriteString(`<w:headerReference w:type="default" r:id="`)
+		ins.WriteString(escapeAttr(headerRID))
+		ins.WriteString(`"/>`)
+	}
+	if footerRID != "" {
+		ins.WriteString(`<w:footerReference w:type="default" r:id="`)
+		ins.WriteString(escapeAttr(footerRID))
+		ins.WriteString(`"/>`)
+	}
+	out := make([]byte, 0, len(sect)+ins.Len())
 	out = append(out, sect[:idx]...)
-	out = append(out, ins...)
+	out = append(out, ins.String()...)
 	out = append(out, sect[idx:]...)
 	return out
 }
 
-func defaultBodyClosingSectPr(footerRID string) string {
+func defaultBodyClosingSectPr(headerRID, footerRID string) string {
 	var b bytes.Buffer
 	b.WriteString(`<w:sectPr>`)
+	if headerRID != "" {
+		b.WriteString(`<w:headerReference w:type="default" r:id="`)
+		b.WriteString(escapeAttr(headerRID))
+		b.WriteString(`"/>`)
+	}
 	if footerRID != "" {
 		b.WriteString(`<w:footerReference w:type="default" r:id="`)
 		b.WriteString(escapeAttr(footerRID))

@@ -14,6 +14,7 @@ const (
 	relTypeStyles    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
 	relTypeNumbering = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering"
 	relTypeFooter    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
+	relTypeHeader    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
 )
 
 // Document is an opened or newly built .docx (WordprocessingML) package.
@@ -36,6 +37,14 @@ type Document struct {
 	footerPageNumber bool
 	// footerPageTemplate: literal + placeholders [FooterPlaceholderPage] / [FooterPlaceholderNumPages]; kosong = default "Hal. {{PAGE}}".
 	footerPageTemplate string
+
+	// headerPageNumber: when true, Save (NewDocument only) emits /word/header1.xml with PAGE field and headerReference in sectPr.
+	headerPageNumber bool
+	// headerPageTemplate: same placeholders as footer; kosong = default "Hal. {{PAGE}}" (rata tengah).
+	headerPageTemplate string
+
+	// stripLayoutHints: when true, [Save] omits w:lastRenderedPageBreak from serialized runs.
+	stripLayoutHints bool
 }
 
 // Open opens a DOCX from a ZIP-backed reader (e.g. *os.File or bytes.NewReader data).
@@ -72,6 +81,34 @@ func (d *Document) SetFooterPageNumberTemplate(layout string) {
 		return
 	}
 	d.footerPageTemplate = layout
+}
+
+// SetHeaderPageNumber enables a default header with PAGE (and optional NUMPAGES) fields on Save.
+// MVP: only for documents from [NewDocument]; [Open] returns [ErrHeaderPageNumberOpenDoc] if set when saving.
+func (d *Document) SetHeaderPageNumber(v bool) {
+	if d == nil {
+		return
+	}
+	d.headerPageNumber = v
+}
+
+// SetHeaderPageNumberTemplate sets header text when [SetHeaderPageNumber](true).
+// Uses the same placeholders as the footer: [HeaderPlaceholderPage] (= [FooterPlaceholderPage]) and [HeaderPlaceholderNumPages].
+// Default layout when empty: "Hal. {{PAGE}}" (paragraph alignment center).
+func (d *Document) SetHeaderPageNumberTemplate(layout string) {
+	if d == nil {
+		return
+	}
+	d.headerPageTemplate = layout
+}
+
+// SetStripLayoutHints controls whether Word layout hints (w:lastRenderedPageBreak) are written on [Save].
+// When true, those elements are omitted from runs; pagination instructions (w:br, w:sectPr, etc.) are unchanged.
+func (d *Document) SetStripLayoutHints(v bool) {
+	if d == nil {
+		return
+	}
+	d.stripLayoutHints = v
 }
 
 // NewDocument returns an empty in-memory document ready for the builder API and Save.

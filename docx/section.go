@@ -36,6 +36,21 @@ type Columns struct {
 	EqualWidth bool
 }
 
+// PageNumberFormat is w:pgNumType/@w:fmt (ST_NumberFormat). Empty ([PageNumberFormatDefault]) omits the attribute so Word uses its default (typically decimal).
+// See ECMA-376 ST_NumberFormat; common values: [PageNumberFormatDecimal], [PageNumberFormatUpperRoman], [PageNumberFormatLowerRoman], letters, ordinal, cardinal.
+type PageNumberFormat string
+
+const (
+	PageNumberFormatDefault     PageNumberFormat = ""
+	PageNumberFormatDecimal     PageNumberFormat = "decimal"
+	PageNumberFormatUpperRoman  PageNumberFormat = "upperRoman"
+	PageNumberFormatLowerRoman  PageNumberFormat = "lowerRoman"
+	PageNumberFormatUpperLetter PageNumberFormat = "upperLetter"
+	PageNumberFormatLowerLetter PageNumberFormat = "lowerLetter"
+	PageNumberFormatOrdinal     PageNumberFormat = "ordinal"
+	PageNumberFormatCardinal    PageNumberFormat = "cardinal"
+)
+
 // SectionBreakKind selects w:type/@w:val (ST_SectionMark) inside w:sectPr.
 type SectionBreakKind int
 
@@ -57,6 +72,10 @@ type SectionBreakConfig struct {
 	Margins  Margins
 	// Break is w:type (nextPage, continuous, …). Zero defaults to nextPage for [Paragraph.SetSectionBreak].
 	Break SectionBreakKind
+	// PageNumberFormat is w:pgNumType/@w:fmt (romawi, huruf, …). [PageNumberFormatDefault] = omit.
+	PageNumberFormat PageNumberFormat
+	// PageNumberStart, if non-nil, sets w:pgNumType/@w:start (nomor halaman pertama section untuk bidang PAGE).
+	PageNumberStart *int
 }
 
 // Section is a document section (merged view over w:sectPr).
@@ -133,6 +152,46 @@ func (s *Section) BreakKind() SectionBreakKind {
 		return SectionBreakUnset
 	}
 	return sectionBreakKindFromWML(s.sec.TypeVal)
+}
+
+// PageNumberFormat returns w:pgNumType/@w:fmt, or [PageNumberFormatDefault] if unset.
+func (s *Section) PageNumberFormat() PageNumberFormat {
+	if s == nil {
+		return PageNumberFormatDefault
+	}
+	return PageNumberFormat(strings.TrimSpace(s.sec.PageNumFmt))
+}
+
+// SetPageNumberFormat sets w:pgNumType/@w:fmt. Use [PageNumberFormatDefault] to clear format (still may emit pgNumType if start is set).
+func (s *Section) SetPageNumberFormat(f PageNumberFormat) {
+	if s == nil || s.doc == nil {
+		return
+	}
+	s.sec.PageNumFmt = string(strings.TrimSpace(string(f)))
+	s.apply()
+}
+
+// PageNumberStart returns (n, true) if w:pgNumType/@w:start is set.
+func (s *Section) PageNumberStart() (n int, ok bool) {
+	if s == nil || !s.sec.PageNumStartSet {
+		return 0, false
+	}
+	return s.sec.PageNumStart, true
+}
+
+// SetPageNumberStart sets w:pgNumType/@w:start for this section. Pass nil to clear; otherwise first PAGE value uses *p (typically ≥ 1).
+func (s *Section) SetPageNumberStart(p *int) {
+	if s == nil || s.doc == nil {
+		return
+	}
+	if p == nil {
+		s.sec.PageNumStartSet = false
+		s.sec.PageNumStart = 0
+	} else {
+		s.sec.PageNumStartSet = true
+		s.sec.PageNumStart = *p
+	}
+	s.apply()
 }
 
 // SetBreakKind sets w:type for this section (empty [SectionBreakUnset] clears w:type on next marshal).
@@ -247,6 +306,11 @@ func sectionFromBreakConfig(c SectionBreakConfig) wml.Section {
 	if sec.TypeVal == "" {
 		sec.TypeVal = "nextPage"
 	}
+	sec.PageNumFmt = strings.TrimSpace(string(c.PageNumberFormat))
+	if c.PageNumberStart != nil {
+		sec.PageNumStartSet = true
+		sec.PageNumStart = *c.PageNumberStart
+	}
 	return sec
 }
 
@@ -320,6 +384,16 @@ func marshalSectPrBytes(sec wml.Section) []byte {
 		eq = "1"
 	}
 	b.WriteString(`<w:cols w:num="` + strconv.Itoa(c.Num) + `" w:sep="` + sep + `" w:equalWidth="` + eq + `"/>`)
+	if sec.PageNumStartSet || strings.TrimSpace(sec.PageNumFmt) != "" {
+		b.WriteString(`<w:pgNumType`)
+		if sec.PageNumStartSet {
+			b.WriteString(` w:start="` + strconv.Itoa(sec.PageNumStart) + `"`)
+		}
+		if f := strings.TrimSpace(sec.PageNumFmt); f != "" {
+			b.WriteString(` w:fmt="` + escapeAttr(f) + `"`)
+		}
+		b.WriteString(`/>`)
+	}
 	b.WriteString(`</w:sectPr>`)
 	return b.Bytes()
 }

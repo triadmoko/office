@@ -99,6 +99,15 @@ func parseSectPrChildElement(d *xml.Decoder, se xml.StartElement, sec *Section) 
 		sec.Columns.EqualWidth = strings.EqualFold(attrLocal(se.Attr, "equalWidth"), "1") ||
 			strings.EqualFold(attrLocal(se.Attr, "equalWidth"), "true")
 		_ = skipSubtree(d, se)
+	case "pgNumType":
+		if v := strings.TrimSpace(attrLocal(se.Attr, "fmt")); v != "" {
+			sec.PageNumFmt = v
+		}
+		if s := strings.TrimSpace(attrLocal(se.Attr, "start")); s != "" {
+			sec.PageNumStart = intAttr(s)
+			sec.PageNumStartSet = true
+		}
+		_ = skipSubtree(d, se)
 	default:
 		_ = skipSubtree(d, se)
 	}

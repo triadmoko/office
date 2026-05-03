@@ -79,6 +79,7 @@ const (
 	CTWordFontTable    = "application/vnd.openxmlformats-officedocument.wordprocessingml.fontTable+xml"
 	CTWordWebSettings  = "application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml"
 	CTWordFooter       = "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"
+	CTWordHeader       = "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"
 
 	// SpreadsheetML
 	CTSpreadsheetMain = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"

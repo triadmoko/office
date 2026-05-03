@@ -148,6 +148,38 @@ func (tr *TableRow) Height() (twips int64, rule RowHeightRule) {
 	return tr.r.HeightVal, fromWMLTrHeightRule(tr.r.HeightRule)
 }
 
+// CantSplit reports w:cantSplit (row must not break across pages).
+func (tr *TableRow) CantSplit() bool {
+	if tr == nil || tr.r == nil {
+		return false
+	}
+	return tr.r.CantSplit
+}
+
+// SetCantSplit sets w:cantSplit.
+func (tr *TableRow) SetCantSplit(v bool) {
+	if tr == nil || tr.r == nil {
+		return
+	}
+	tr.r.CantSplit = v
+}
+
+// RepeatAsHeaderRow reports w:tblHeader (repeat row at top of each page).
+func (tr *TableRow) RepeatAsHeaderRow() bool {
+	if tr == nil || tr.r == nil {
+		return false
+	}
+	return tr.r.TblHeader
+}
+
+// SetRepeatAsHeaderRow sets w:tblHeader.
+func (tr *TableRow) SetRepeatAsHeaderRow(v bool) {
+	if tr == nil || tr.r == nil {
+		return
+	}
+	tr.r.TblHeader = v
+}
+
 // TableCell is w:tc.
 type TableCell struct {
 	c   *wml.TableCell

@@ -36,8 +36,16 @@ type ParagraphProps struct {
 	Spacing   Spacing
 	StyleID   string
 	Numbering *NumPr
-	RawPPr    []byte // unparsed w:pPr remainder for round-trip
+	RawPPr    []byte // unparsed w:pPr remainder for round-trip (whole w:pPr when set manually)
 	SectPr    []byte // w:sectPr inside last para of section (106)
+
+	PageBreakBefore bool
+	KeepNext        bool
+	KeepLines       bool
+	// WidowControl is nil if unset, else paragraph widow/orphan control on/off.
+	WidowControl *bool
+	// RawPPrTail is concatenated capture of unknown w:pPr children (preserve order).
+	RawPPrTail []byte
 }
 
 // Alignment is w:jc.
@@ -81,14 +89,28 @@ type NumPr struct {
 	Ilvl  int
 }
 
+// BrKind is w:br/@w:type (ST_BrType); BrKindLine means line break (no type or unrecognized handled as line).
+type BrKind int
+
+const (
+	BrKindNone BrKind = iota
+	BrKindLine
+	BrKindPage
+	BrKindColumn
+	BrKindTextWrapping
+)
+
 // RunPart is one logical segment inside a run (text, special char, or raw XML).
 type RunPart struct {
 	Text       string
 	Tab        bool
-	Br         bool // line break (w:br without type=page)
-	PageBreak  bool // w:br w:type="page"
+	BrKind     BrKind // w:br; BrKindNone if not a break
+	BrClear    string // w:br/@w:clear when BrRaw empty
+	BrRaw      []byte // full w:br subtree when type/attrs need exact round-trip
 	SoftHyphen bool
 	Unknown    []byte
+	// LastRenderedPageBreak is raw XML for w:lastRenderedPageBreak (Word layout hint, not a pagination instruction).
+	LastRenderedPageBreak []byte
 }
 
 // Run is one w:r.
@@ -148,6 +170,12 @@ type TableRow struct {
 	// Row height (w:trPr/w:trHeight); HeightVal in twips; unset = omit.
 	HeightVal  int64
 	HeightRule TrHeightRule
+	// CantSplit: if true, emit w:cantSplit (row must not break across pages).
+	CantSplit bool
+	// TblHeader: if true, repeat this row at top of each page (w:tblHeader).
+	TblHeader bool
+	// RawTrPr is unknown w:trPr children (bytes), in document order.
+	RawTrPr []byte
 }
 
 // TableCell is w:tc.
@@ -216,5 +244,8 @@ type TableProps struct {
 	Width TableWidth
 	// GridColWidths is w:tblGrid: each entry is w:gridCol/@w:w in twips (dxa).
 	GridColWidths []int64
-	Raw           []byte
+	// Raw is a full w:tblPr fragment when set externally (marshal writes as-is, exclusive with structured tblPr).
+	Raw []byte
+	// TblPrExtra is inner w:tblPr content after w:tblW for unknown children from Word (round-trip).
+	TblPrExtra []byte
 }

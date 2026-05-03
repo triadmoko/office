@@ -222,6 +222,26 @@ func parsePPr(dec *xml.Decoder, start xml.StartElement, p *Paragraph) error {
 					return err
 				}
 				p.PPr.Numbering = n
+			case "pageBreakBefore":
+				p.PPr.PageBreakBefore = true
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "keepNext":
+				p.PPr.KeepNext = true
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "keepLines":
+				p.PPr.KeepLines = true
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "widowControl":
+				p.PPr.WidowControl = parseWidowControlStart(t)
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
 			case "sectPr":
 				sub, err := captureSubtree(dec, t)
 				if err != nil {
@@ -229,9 +249,11 @@ func parsePPr(dec *xml.Decoder, start xml.StartElement, p *Paragraph) error {
 				}
 				p.PPr.SectPr = append([]byte(nil), sub...)
 			default:
-				if err := skipSubtree(dec, t); err != nil {
+				sub, err := captureSubtree(dec, t)
+				if err != nil {
 					return err
 				}
+				p.PPr.RawPPrTail = append(p.PPr.RawPPrTail, sub...)
 			}
 		case xml.EndElement:
 			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "pPr" {
@@ -359,6 +381,23 @@ func valAttr(attrs []xml.Attr) string {
 	return ""
 }
 
+// parseWidowControlStart maps w:widowControl start element to on/off (nil = treat as on per empty CT_OnOff).
+func parseWidowControlStart(se xml.StartElement) *bool {
+	v := strings.ToLower(strings.TrimSpace(valAttr(se.Attr)))
+	if v == "" {
+		t := true
+		return &t
+	}
+	switch v {
+	case "0", "false", "off":
+		f := false
+		return &f
+	default:
+		t := true
+		return &t
+	}
+}
+
 func parseRun(dec *xml.Decoder, start xml.StartElement) (*Run, error) {
 	run := &Run{}
 	for {
@@ -399,14 +438,49 @@ func parseRun(dec *xml.Decoder, start xml.StartElement) (*Run, error) {
 				}
 			case "br":
 				typ := strings.ToLower(strings.TrimSpace(attrLocal(t.Attr, "type")))
-				if typ == "page" {
-					run.Parts = append(run.Parts, RunPart{PageBreak: true})
-				} else {
-					run.Parts = append(run.Parts, RunPart{Br: true})
+				clr := strings.TrimSpace(attrLocal(t.Attr, "clear"))
+				switch typ {
+				case "page":
+					run.Parts = append(run.Parts, RunPart{BrKind: BrKindPage, BrClear: clr})
+					if err := skipSubtree(dec, t); err != nil {
+						return nil, err
+					}
+				case "column":
+					run.Parts = append(run.Parts, RunPart{BrKind: BrKindColumn, BrClear: clr})
+					if err := skipSubtree(dec, t); err != nil {
+						return nil, err
+					}
+				case "textwrapping":
+					run.Parts = append(run.Parts, RunPart{BrKind: BrKindTextWrapping, BrClear: clr})
+					if err := skipSubtree(dec, t); err != nil {
+						return nil, err
+					}
+				case "":
+					if clr != "" {
+						raw, err := captureSubtree(dec, t)
+						if err != nil {
+							return nil, err
+						}
+						run.Parts = append(run.Parts, RunPart{BrRaw: raw})
+					} else {
+						run.Parts = append(run.Parts, RunPart{BrKind: BrKindLine})
+						if err := skipSubtree(dec, t); err != nil {
+							return nil, err
+						}
+					}
+				default:
+					raw, err := captureSubtree(dec, t)
+					if err != nil {
+						return nil, err
+					}
+					run.Parts = append(run.Parts, RunPart{BrRaw: raw})
 				}
-				if err := skipSubtree(dec, t); err != nil {
+			case "lastRenderedPageBreak":
+				sub, err := captureSubtree(dec, t)
+				if err != nil {
 					return nil, err
 				}
+				run.Parts = append(run.Parts, RunPart{LastRenderedPageBreak: sub})
 			case "softHyphen":
 				run.Parts = append(run.Parts, RunPart{SoftHyphen: true})
 				if err := skipSubtree(dec, t); err != nil {
@@ -475,9 +549,13 @@ func (r *Run) RebuildText() {
 		switch {
 		case ch.Tab:
 			b.WriteByte('\t')
-		case ch.PageBreak:
+		case len(ch.LastRenderedPageBreak) > 0:
+			// layout hint: no plain-text glyph
+		case len(ch.BrRaw) > 0:
+			b.WriteByte('\n')
+		case ch.BrKind == BrKindPage:
 			b.WriteByte('\f')
-		case ch.Br:
+		case ch.BrKind == BrKindLine || ch.BrKind == BrKindColumn || ch.BrKind == BrKindTextWrapping:
 			b.WriteByte('\n')
 		case ch.SoftHyphen:
 			b.WriteRune('\u00ad')
@@ -696,6 +774,7 @@ func parseTable(dec *xml.Decoder, start xml.StartElement) (*Table, error) {
 func parseTblPr(dec *xml.Decoder, start xml.StartElement, tbl *Table) error {
 	_ = start
 	tbl.Props.Raw = nil
+	tbl.Props.TblPrExtra = nil
 	for {
 		tok, err := dec.Token()
 		if err != nil {
@@ -710,9 +789,17 @@ func parseTblPr(dec *xml.Decoder, start xml.StartElement, tbl *Table) error {
 				}
 				continue
 			}
-			if err := skipSubtree(dec, t); err != nil {
+			if !isWML(t.Name.Space, t.Name.Local) {
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+				continue
+			}
+			sub, err := captureSubtree(dec, t)
+			if err != nil {
 				return err
 			}
+			tbl.Props.TblPrExtra = append(tbl.Props.TblPrExtra, sub...)
 		case xml.EndElement:
 			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "tblPr" {
 				return nil
@@ -755,6 +842,7 @@ func parseTblGrid(dec *xml.Decoder, start xml.StartElement, tbl *Table) error {
 
 func parseTrPr(dec *xml.Decoder, start xml.StartElement, row *TableRow) error {
 	_ = start
+	row.RawTrPr = nil
 	for {
 		tok, err := dec.Token()
 		if err != nil {
@@ -781,9 +869,31 @@ func parseTrPr(dec *xml.Decoder, start xml.StartElement, row *TableRow) error {
 				}
 				continue
 			}
-			if err := skipSubtree(dec, t); err != nil {
+			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "cantSplit" {
+				row.CantSplit = true
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+				continue
+			}
+			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "tblHeader" {
+				row.TblHeader = true
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+				continue
+			}
+			if !isWML(t.Name.Space, t.Name.Local) {
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+				continue
+			}
+			sub, err := captureSubtree(dec, t)
+			if err != nil {
 				return err
 			}
+			row.RawTrPr = append(row.RawTrPr, sub...)
 		case xml.EndElement:
 			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "trPr" {
 				return nil

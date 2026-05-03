@@ -110,9 +110,88 @@ func (p *Paragraph) AppendPageBreak() {
 	if p == nil || p.x == nil {
 		return
 	}
-	r := &wml.Run{Parts: []wml.RunPart{{PageBreak: true}}}
+	r := &wml.Run{Parts: []wml.RunPart{{BrKind: wml.BrKindPage}}}
 	r.RebuildText()
 	p.x.Runs = append(p.x.Runs, r)
+}
+
+// AppendColumnBreak inserts w:br w:type="column".
+func (p *Paragraph) AppendColumnBreak() {
+	if p == nil || p.x == nil {
+		return
+	}
+	r := &wml.Run{Parts: []wml.RunPart{{BrKind: wml.BrKindColumn}}}
+	r.RebuildText()
+	p.x.Runs = append(p.x.Runs, r)
+}
+
+// PageBreakBefore reports w:pageBreakBefore on this paragraph.
+func (p *Paragraph) PageBreakBefore() bool {
+	if p == nil || p.x == nil {
+		return false
+	}
+	return p.x.PPr.PageBreakBefore
+}
+
+// SetPageBreakBefore sets w:pageBreakBefore (paragraph starts on a new page).
+func (p *Paragraph) SetPageBreakBefore(v bool) {
+	if p == nil || p.x == nil {
+		return
+	}
+	p.x.PPr.PageBreakBefore = v
+}
+
+// KeepNext reports w:keepNext.
+func (p *Paragraph) KeepNext() bool {
+	if p == nil || p.x == nil {
+		return false
+	}
+	return p.x.PPr.KeepNext
+}
+
+// SetKeepNext sets w:keepNext (keep this paragraph with the next).
+func (p *Paragraph) SetKeepNext(v bool) {
+	if p == nil || p.x == nil {
+		return
+	}
+	p.x.PPr.KeepNext = v
+}
+
+// KeepLines reports w:keepLines.
+func (p *Paragraph) KeepLines() bool {
+	if p == nil || p.x == nil {
+		return false
+	}
+	return p.x.PPr.KeepLines
+}
+
+// SetKeepLines sets w:keepLines (keep all lines of this paragraph on the same page).
+func (p *Paragraph) SetKeepLines(v bool) {
+	if p == nil || p.x == nil {
+		return
+	}
+	p.x.PPr.KeepLines = v
+}
+
+// WidowControl returns (on, true) if w:widowControl is set; (false, false) if unset.
+func (p *Paragraph) WidowControl() (on bool, set bool) {
+	if p == nil || p.x == nil || p.x.PPr.WidowControl == nil {
+		return false, false
+	}
+	return *p.x.PPr.WidowControl, true
+}
+
+// SetWidowControl sets w:widowControl. Pass nil to clear; &false turns off; &true turns on.
+func (p *Paragraph) SetWidowControl(v *bool) {
+	if p == nil || p.x == nil {
+		return
+	}
+	if v == nil {
+		p.x.PPr.WidowControl = nil
+		return
+	}
+	c := *v
+	p.x.PPr.WidowControl = &c
 }
 
 // SetSectionBreak writes w:pPr/w:sectPr: isi setelah paragraf ini memakai bagian baru dengan ukuran/orientasi cfg.

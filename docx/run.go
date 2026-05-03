@@ -22,7 +22,7 @@ func (r *Run) ContainsPageBreak() bool {
 		return false
 	}
 	for _, p := range r.x.Parts {
-		if p.PageBreak {
+		if p.BrKind == wml.BrKindPage {
 			return true
 		}
 	}

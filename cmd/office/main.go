@@ -10,7 +10,7 @@ import (
 )
 
 // contoh DOCX dalam satu fungsi: sampul + TOC + pemecah bagian (next page) + isi.
-// Daftar isi statis (bukan bidang TOC Word). Footer PAGE/NUMPAGES: perilaku global sesuai MVP paket docx.
+// Daftar isi statis (bukan bidang TOC Word). Header + footer: bidang PAGE/NUMPAGES (NewDocument+Save).
 
 func main() {
 	out := flag.String("o", "office-sample.docx", "path file .docx keluaran")
@@ -30,11 +30,17 @@ func main() {
 
 func writeSampleDocx(path string) error {
 	d := docx.NewDocument()
+	// Saat membuka DOCX dari Word lalu Save lagi: hilangkan jejak layout w:lastRenderedPageBreak (bukan instruksi page break).
+	d.SetStripLayoutHints(true)
 
 	d.SetFooterPageNumber(true)
 	d.SetFooterPageNumberTemplate(
 		"No. " + docx.FooterPlaceholderPage +
 			" / " + docx.FooterPlaceholderNumPages + " hal.",
+	)
+	d.SetHeaderPageNumber(true)
+	d.SetHeaderPageNumberTemplate(
+		"Laporan · p. " + docx.HeaderPlaceholderPage,
 	)
 	if sec := d.SectionAt(0); sec != nil {
 		sec.SetPageSize(docx.PageSizeA4)
@@ -89,7 +95,9 @@ func writeSampleDocx(path string) error {
 		{"1. Pendahuluan", "3"},
 		{"2. Format paragraf & perataan", "3"},
 		{"3. Format run (tebal, warna, …)", "4"},
-		{"4. Daftar & tabel", "4"},
+		{"4. Daftar", "4"},
+		{"5. Tabel", "4"},
+		{"6. Pagination & pemisah OOXML", "6"},
 	}
 	const tocWidth = 62
 	for _, e := range tocEntries {
@@ -121,6 +129,10 @@ func writeSampleDocx(path string) error {
 			Top: 1800, Bottom: 1800, Left: 1440, Right: 1440,
 			Header: 720, Footer: 720, Gutter: 0,
 		})
+		// Penomoran halaman isi utama: mulai dari 1, format desimal (w:pgNumType di w:sectPr bagian ini).
+		sec.SetPageNumberFormat(docx.PageNumberFormatDecimal)
+		mainStart := 1
+		sec.SetPageNumberStart(&mainStart)
 	}
 
 	// ----- Isi utama -----
@@ -230,6 +242,8 @@ func writeSampleDocx(path string) error {
 	tbl := d.Body().AppendTable(3, 2)
 	tbl.SetGridColWidths([]int64{2000, 2000})
 	tbl.Rows()[0].SetHeight(500, docx.RowHeightAtLeast)
+	tbl.Rows()[0].SetRepeatAsHeaderRow(true) // w:tblHeader — baris judul diulang di atas setiap halaman (perilaku Word)
+	tbl.Rows()[1].SetCantSplit(true)       // w:cantSplit — baris ini tidak boleh terpotong antar halaman
 	tbl.SetBorder(
 		docx.BorderTop|docx.BorderLeft|docx.BorderBottom|docx.BorderRight|docx.BorderInsideH|docx.BorderInsideV,
 		docx.BorderStyle{Color: "4472C4", Size: 8, Kind: docx.BorderSingle},
@@ -245,9 +259,48 @@ func writeSampleDocx(path string) error {
 	tbl.Rows()[2].Cells()[0].Paragraphs()[0].AppendRun("Teks panjang (wrap).")
 	tbl.Rows()[2].Cells()[1].Paragraphs()[0].AppendRun("OK")
 
+	// ----- Pagination & marka OOXML (w:pPr, w:br, w:trPr) -----
+	h6 := d.Body().AppendParagraph()
+	h6.SetSpacing(docx.Spacing{Before: 240, After: 160})
+	h6r := h6.AppendRun("6. Pagination & pemisah OOXML")
+	h6r.SetBold(true)
+	h6r.SetSize(28)
+
+	d.Body().AppendParagraph().AppendRun("Paragraf berikut memakai keepNext: paragraf ini tetap bersama paragraf berikutnya di halaman yang sama bila memungkinkan.")
+	pKN := d.Body().AppendParagraph()
+	pKN.SetKeepNext(true)
+	pKN.SetSpacing(docx.Spacing{After: 60})
+	pKN.AppendRun("[keepNext] Judul kecil yang dijaga bersama blok berikut.")
+	pKNFollow := d.Body().AppendParagraph()
+	pKNFollow.SetSpacing(docx.Spacing{After: 200})
+	pKNFollow.AppendRun("[ikut keepNext] Blok narasi yang ingin tidak terpisah halaman dari paragraf di atas.")
+
+	pPBB := d.Body().AppendParagraph()
+	pPBB.SetPageBreakBefore(true)
+	pPBB.SetSpacing(docx.Spacing{After: 120})
+	pPBB.AppendRun("[pageBreakBefore] Paragraf ini meminta halaman baru sebelum dirinya (w:pageBreakBefore).")
+
+	pKL := d.Body().AppendParagraph()
+	pKL.SetKeepLines(true)
+	on := true
+	pKL.SetWidowControl(&on)
+	pKL.SetSpacing(docx.Spacing{After: 120})
+	pKL.AppendRun("[keepLines + widowControl] Mengurangi janda/yatim: seluruh baris paragraf dijaga, kontrol widow/line orphan aktif.")
+
+	pCol := d.Body().AppendParagraph()
+	pCol.SetSpacing(docx.Spacing{After: 120})
+	pCol.AppendRun("Dalam layout multi-kolom Word, ")
+	pCol.AppendColumnBreak() // w:br w:type="column"
+	pCol.AppendRun("teks setelah ini lanjut ke kolom berikutnya.")
+
+	d.Body().AppendParagraph().AppendRun("(Catatan: AppendPageBreak = w:br w:type page sudah dipakai di atas menuju bagian format run.)")
+	d.Body().AppendParagraph().AppendRun(
+		"API section: SetPageNumberStart(&n) + SetPageNumberFormat (decimal, lowerRoman, upperRoman, lowerLetter, …) mengatur w:pgNumType; footer {{PAGE}} mengikuti bagian aktif.",
+	)
+
 	pEnd := d.Body().AppendParagraph()
 	pEnd.SetSpacing(docx.Spacing{Before: 360})
-	pEnd.AppendRun("Selesai — periksa struktur: sampul + TOC (section pertama), lalu section break next page, lalu isi.")
+	pEnd.AppendRun("Selesai — periksa struktur: sampul + TOC (section pertama), lalu section break next page, lalu isi, pagination OOXML, SetStripLayoutHints untuk save bersih dari lastRenderedPageBreak.")
 
 	return d.SaveFile(path)
 }

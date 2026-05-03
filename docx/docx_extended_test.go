@@ -43,6 +43,47 @@ func TestFooterPageNumberNewDocument(t *testing.T) {
 	}
 }
 
+func TestHeaderPageNumberNewDocument(t *testing.T) {
+	d := NewDocument()
+	d.SetHeaderPageNumber(true)
+	d.SetHeaderPageNumberTemplate("No. " + HeaderPlaceholderPage)
+	d.Body().AppendParagraph().AppendRun("body")
+	var buf bytes.Buffer
+	if err := d.Save(&buf); err != nil {
+		t.Fatal(err)
+	}
+	d2, err := Open(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, err := d2.Package().FileNames()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, n := range names {
+		if strings.Contains(strings.ToLower(n), "header1") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("header part missing: %v", names)
+	}
+	rc, err := d2.Package().OpenReader("/word/header1.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hxml, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(hxml), "<w:hdr") || !strings.Contains(string(hxml), " PAGE ") {
+		t.Fatalf("header xml: %s", hxml)
+	}
+}
+
 func TestFooterPageNumberTemplateRoundTrip(t *testing.T) {
 	d := NewDocument()
 	d.SetFooterPageNumber(true)

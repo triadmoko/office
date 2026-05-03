@@ -42,5 +42,10 @@ type Section struct {
 	Columns  Columns
 	// TypeVal is w:type/@w:val (ST_SectionMark): nextPage, continuous, nextColumn, evenPage, oddPage; empty = omit.
 	TypeVal string
-	Raw     []byte
+	// PageNumFmt is w:pgNumType/@w:fmt (ST_NumberFormat): decimal, upperRoman, lowerRoman, upperLetter, lowerLetter, …; empty = omit.
+	PageNumFmt string
+	// PageNumStartSet + PageNumStart map w:pgNumType/@w:start (first page number of this section for PAGE field).
+	PageNumStartSet bool
+	PageNumStart    int
+	Raw             []byte
 }

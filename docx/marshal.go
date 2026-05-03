@@ -35,6 +35,10 @@ func escapeAttr(s string) string {
 type MarshalDocumentOpts struct {
 	// FooterRelationshipID is r:id for w:footerReference (e.g. "rId2"); empty skips footer reference.
 	FooterRelationshipID string
+	// HeaderRelationshipID is r:id for w:headerReference (e.g. "rId3"); empty skips header reference.
+	HeaderRelationshipID string
+	// StripLayoutHints: when true, omits w:lastRenderedPageBreak from runs (Word layout cache, not pagination instructions).
+	StripLayoutHints bool
 }
 
 // MarshalDocumentXML serializes the main document body to WordprocessingML.
@@ -47,36 +51,36 @@ func MarshalDocumentXML(doc *wml.Document, opts MarshalDocumentOpts) ([]byte, er
 	b.WriteString(`<w:document xmlns:w="` + nsW + `" xmlns:r="` + nsR + `">`)
 	b.WriteString(`<w:body>`)
 	for _, bl := range doc.Body.Blocks {
-		if err := marshalBodyBlock(&b, bl); err != nil {
+		if err := marshalBodyBlock(&b, bl, opts); err != nil {
 			return nil, err
 		}
 	}
 	if len(doc.Body.SectPr) > 0 {
-		if opts.FooterRelationshipID != "" {
-			b.Write(injectFooterReferenceIntoSectPr(doc.Body.SectPr, opts.FooterRelationshipID))
+		if opts.HeaderRelationshipID != "" || opts.FooterRelationshipID != "" {
+			b.Write(injectSectPrHeaderFooterRefs(doc.Body.SectPr, opts.HeaderRelationshipID, opts.FooterRelationshipID))
 		} else {
 			b.Write(doc.Body.SectPr)
 		}
 	} else {
-		b.WriteString(defaultBodyClosingSectPr(opts.FooterRelationshipID))
+		b.WriteString(defaultBodyClosingSectPr(opts.HeaderRelationshipID, opts.FooterRelationshipID))
 	}
 	b.WriteString(`</w:body></w:document>`)
 	return b.Bytes(), nil
 }
 
-func marshalBodyBlock(b *bytes.Buffer, bl wml.BodyBlock) error {
+func marshalBodyBlock(b *bytes.Buffer, bl wml.BodyBlock, opts MarshalDocumentOpts) error {
 	switch {
 	case bl.Para != nil:
-		marshalParagraph(b, bl.Para)
+		marshalParagraph(b, bl.Para, opts)
 	case bl.Table != nil:
-		marshalTable(b, bl.Table)
+		marshalTable(b, bl.Table, opts)
 	case len(bl.Unknown) > 0:
 		b.Write(bl.Unknown)
 	}
 	return nil
 }
 
-func marshalParagraph(b *bytes.Buffer, p *wml.Paragraph) {
+func marshalParagraph(b *bytes.Buffer, p *wml.Paragraph, opts MarshalDocumentOpts) {
 	if p == nil {
 		return
 	}
@@ -87,7 +91,7 @@ func marshalParagraph(b *bytes.Buffer, p *wml.Paragraph) {
 		marshalPPrStructured(b, p.PPr)
 	}
 	for _, r := range p.Runs {
-		marshalRun(b, r)
+		marshalRun(b, r, opts)
 	}
 	if len(p.Unknown) > 0 {
 		b.Write(p.Unknown)
@@ -128,8 +132,27 @@ func marshalPPrStructured(b *bytes.Buffer, pr wml.ParagraphProps) {
 		// Use explicit close tags: some xml.Decoder paths reject sibling self-closing tags in numPr.
 		b.WriteString(`<w:numPr><w:ilvl w:val="` + strconv.Itoa(pr.Numbering.Ilvl) + `"></w:ilvl><w:numId w:val="` + strconv.Itoa(pr.Numbering.NumID) + `"></w:numId></w:numPr>`)
 	}
+	if pr.PageBreakBefore {
+		b.WriteString(`<w:pageBreakBefore/>`)
+	}
+	if pr.KeepNext {
+		b.WriteString(`<w:keepNext/>`)
+	}
+	if pr.KeepLines {
+		b.WriteString(`<w:keepLines/>`)
+	}
+	if pr.WidowControl != nil {
+		if *pr.WidowControl {
+			b.WriteString(`<w:widowControl/>`)
+		} else {
+			b.WriteString(`<w:widowControl w:val="0"/>`)
+		}
+	}
 	if len(pr.SectPr) > 0 {
 		b.Write(pr.SectPr)
+	}
+	if len(pr.RawPPrTail) > 0 {
+		b.Write(pr.RawPPrTail)
 	}
 	b.WriteString(`</w:pPr>`)
 }
@@ -142,6 +165,9 @@ func pPrIsEmpty(pr wml.ParagraphProps) bool {
 		return false
 	}
 	if pr.Indent != (wml.Indent{}) || pr.Spacing != (wml.Spacing{}) {
+		return false
+	}
+	if pr.PageBreakBefore || pr.KeepNext || pr.KeepLines || pr.WidowControl != nil || len(pr.RawPPrTail) > 0 {
 		return false
 	}
 	return true
@@ -186,7 +212,7 @@ func lineRuleString(r wml.LineRule) string {
 	}
 }
 
-func marshalRun(b *bytes.Buffer, r *wml.Run) {
+func marshalRun(b *bytes.Buffer, r *wml.Run, opts MarshalDocumentOpts) {
 	if r == nil {
 		return
 	}
@@ -233,10 +259,20 @@ func marshalRun(b *bytes.Buffer, r *wml.Run) {
 		switch {
 		case part.Tab:
 			b.WriteString(`<w:tab/>`)
-		case part.PageBreak:
-			b.WriteString(`<w:br w:type="page"/>`)
-		case part.Br:
-			b.WriteString(`<w:br/>`)
+		case len(part.LastRenderedPageBreak) > 0:
+			if !opts.StripLayoutHints {
+				b.Write(part.LastRenderedPageBreak)
+			}
+		case len(part.BrRaw) > 0:
+			b.Write(part.BrRaw)
+		case part.BrKind == wml.BrKindPage:
+			marshalWBr(b, "page", part.BrClear)
+		case part.BrKind == wml.BrKindColumn:
+			marshalWBr(b, "column", part.BrClear)
+		case part.BrKind == wml.BrKindTextWrapping:
+			marshalWBr(b, "textWrapping", part.BrClear)
+		case part.BrKind == wml.BrKindLine:
+			marshalWBr(b, "", part.BrClear)
 		case part.SoftHyphen:
 			b.WriteString(`<w:softHyphen/>`)
 		case part.Text != "":
@@ -248,23 +284,44 @@ func marshalRun(b *bytes.Buffer, r *wml.Run) {
 	b.WriteString(`</w:r>`)
 }
 
+func marshalWBr(b *bytes.Buffer, typ, clear string) {
+	b.WriteString(`<w:br`)
+	if typ != "" {
+		b.WriteString(` w:type="` + escapeAttr(typ) + `"`)
+	}
+	if clear != "" {
+		b.WriteString(` w:clear="` + escapeAttr(clear) + `"`)
+	}
+	b.WriteString(`/>`)
+}
+
 func emptyRunProps(r wml.RunProps) bool {
 	return !r.Bold && !r.Italic && !r.Underline && !r.Strike && strings.TrimSpace(r.Emphasis) == "" &&
 		r.VertAlign == wml.VertAlignBaseline &&
 		r.FontSizeHalf == 0 && r.Color == "" && strings.TrimSpace(r.Highlight) == "" && r.FontName == ""
 }
 
-func marshalTable(b *bytes.Buffer, t *wml.Table) {
+func marshalTable(b *bytes.Buffer, t *wml.Table, opts MarshalDocumentOpts) {
 	if t == nil {
 		return
 	}
 	b.WriteString(`<w:tbl>`)
 	if len(t.Props.Raw) > 0 {
 		b.Write(t.Props.Raw)
-	} else if t.Props.Width.Value != 0 || t.Props.Width.Kind != wml.WidthAuto {
-		b.WriteString(`<w:tblPr><w:tblW`)
-		writeI64Attr(b, "w:w", t.Props.Width.Value)
-		b.WriteString(` w:type="` + widthKind(t.Props.Width.Kind) + `"/></w:tblPr>`)
+	} else {
+		hasW := t.Props.Width.Value != 0 || t.Props.Width.Kind != wml.WidthAuto
+		if hasW || len(t.Props.TblPrExtra) > 0 {
+			b.WriteString(`<w:tblPr>`)
+			if hasW {
+				b.WriteString(`<w:tblW`)
+				writeI64Attr(b, "w:w", t.Props.Width.Value)
+				b.WriteString(` w:type="` + widthKind(t.Props.Width.Kind) + `"/>`)
+			}
+			if len(t.Props.TblPrExtra) > 0 {
+				b.Write(t.Props.TblPrExtra)
+			}
+			b.WriteString(`</w:tblPr>`)
+		}
 	}
 	if len(t.Props.GridColWidths) > 0 {
 		b.WriteString(`<w:tblGrid>`)
@@ -298,7 +355,7 @@ func marshalTable(b *bytes.Buffer, t *wml.Table) {
 				}
 			}
 			for _, cb := range cell.Blocks {
-				_ = marshalBodyBlock(b, cb)
+				_ = marshalBodyBlock(b, cb, opts)
 			}
 			b.WriteString(`</w:tc>`)
 		}
@@ -355,28 +412,42 @@ func marshalTrPr(b *bytes.Buffer, row *wml.TableRow) {
 	if row == nil {
 		return
 	}
-	emit := row.HeightVal != 0 || row.HeightRule != wml.TrHeightUnset
+	emitHeight := row.HeightVal != 0 || row.HeightRule != wml.TrHeightUnset
+	emit := emitHeight || row.CantSplit || row.TblHeader || len(row.RawTrPr) > 0
 	if !emit {
 		return
 	}
-	rule := "atLeast"
-	switch row.HeightRule {
-	case wml.TrHeightExact:
-		rule = "exact"
-	case wml.TrHeightAtLeast:
-		rule = "atLeast"
-	case wml.TrHeightAuto:
-		rule = "auto"
-	default:
-		if row.HeightVal > 0 {
+	b.WriteString(`<w:trPr>`)
+	if emitHeight {
+		rule := "atLeast"
+		switch row.HeightRule {
+		case wml.TrHeightExact:
+			rule = "exact"
+		case wml.TrHeightAtLeast:
 			rule = "atLeast"
+		case wml.TrHeightAuto:
+			rule = "auto"
+		default:
+			if row.HeightVal > 0 {
+				rule = "atLeast"
+			}
 		}
+		b.WriteString(`<w:trHeight`)
+		if row.HeightVal > 0 {
+			writeI64Attr(b, "w:val", row.HeightVal)
+		}
+		b.WriteString(` w:hRule="` + rule + `"/>`)
 	}
-	b.WriteString(`<w:trPr><w:trHeight`)
-	if row.HeightVal > 0 {
-		writeI64Attr(b, "w:val", row.HeightVal)
+	if row.CantSplit {
+		b.WriteString(`<w:cantSplit/>`)
 	}
-	b.WriteString(` w:hRule="` + rule + `"/></w:trPr>`)
+	if row.TblHeader {
+		b.WriteString(`<w:tblHeader/>`)
+	}
+	if len(row.RawTrPr) > 0 {
+		b.Write(row.RawTrPr)
+	}
+	b.WriteString(`</w:trPr>`)
 }
 
 func writeCellBorder(b *bytes.Buffer, tag string, bd *wml.BorderDef) {
