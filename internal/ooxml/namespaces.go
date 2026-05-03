@@ -2,11 +2,10 @@ package ooxml
 
 // XML namespace URIs used across OOXML packages.
 const (
-	NSContentTypes   = "http://schemas.openxmlformats.org/package/2006/content-types"
-	NSRelationships  = "http://schemas.openxmlformats.org/package/2006/relationships"
-	NSOfficeDocument = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
-	NSWorkbook       = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
-	NSWordprocessing = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+	NSContentTypes        = "http://schemas.openxmlformats.org/package/2006/content-types"
+	NSRelationships       = "http://schemas.openxmlformats.org/package/2006/relationships"
+	NSRelOfficeDocument   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+	NSWordprocessingMain  = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 )
 
 // ECMA-376 content types for package validation.

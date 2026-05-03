@@ -1,0 +1,43 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/office
+/bin/
+
+# Test / coverage
+*.test
+*.out
+coverage.out
+coverage.html
+*.coverprofile
+
+# Go workspace (optional local tooling)
+go.work
+go.work.sum
+
+# Dependency directories (uncomment if you add vendoring)
+# vendor/
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Debug / temp
+tmp/
+temp/
+*.log
