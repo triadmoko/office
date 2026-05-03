@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest new capability or an improvement to an existing API
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project targets **Office Open XML** with **pure Go standard library** dependencies. Large features may need design discussion first—see [CONTRIBUTING.md](https://github.com/triadmoko/office/blob/main/CONTRIBUTING.md).
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / use case
+      description: What are you trying to achieve? Who benefits?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: API sketch, behavior, or references to ECMA-376 / ISO 29500 sections if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional—other libraries, workarounds, or smaller scope variants.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Primary area
+      options:
+        - docx
+        - xlsx
+        - pptx
+        - internal/ooxml
+        - Documentation / examples
+        - Tooling (CI, templates)
+        - Other
+    validations:
+      required: true

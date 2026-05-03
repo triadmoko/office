@@ -1,0 +1,67 @@
+name: Bug report
+description: Report incorrect behavior, a panic, or invalid output
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve **office**. Please include a reproducer when possible (small `.docx` / `.xlsx` / `.pptx`, or a code snippet using only the Go standard library).
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong in one or two sentences?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands, code, or attach a minimal file (zip if needed).
+      placeholder: |
+        go test ./docx -run TestSomething -v
+        …
+
+  - type: input
+    id: version
+    attributes:
+      label: Go version
+      placeholder: e.g. go1.25.3
+    validations:
+      required: true
+
+  - type: input
+    id: module
+    attributes:
+      label: Module version or git commit
+      placeholder: e.g. v0.1.0 or abc1234
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - docx
+        - xlsx
+        - pptx
+        - internal/ooxml
+        - cmd/office
+        - Unsure
+    validations:
+      required: true

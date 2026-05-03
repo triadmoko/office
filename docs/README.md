@@ -1,0 +1,16 @@
+# Documentation index
+
+Project: [**office**](https://github.com/triadmoko/office) — Office Open XML (OOXML) in pure Go (standard library only).
+
+| Document | Description |
+|----------|-------------|
+| [Architecture](architecture.md) | OPC layout, packages, and layering |
+| [Formats](formats.md) | `.docx`, `.xlsx`, `.pptx` support matrix and limitations |
+| [Development](development.md) | Local workflow, CI, and links to contributor guides |
+
+Also see the repository root:
+
+- [README.md](../README.md) — quick start and API snippets
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — how to propose changes
+- [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) — community standards
+- [SECURITY.md](../SECURITY.md) — how to report vulnerabilities

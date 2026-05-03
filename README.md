@@ -87,12 +87,21 @@ With no `-write-docx` flag, the binary prints a short usage line.
 
 ```
 .
+├── .github/          # issue forms, PR template, CI, dependabot
 ├── cmd/office/       # small demo CLI
 ├── docx/             # WordprocessingML
-├── xlsx/             # SpreadsheetML (skeleton)
+├── docs/             # architecture & format documentation
 ├── pptx/             # PresentationML (skeleton)
+├── xlsx/             # SpreadsheetML (skeleton)
 └── internal/ooxml/   # OPC: ZIP, content types, relationships
 ```
+
+## Documentation
+
+- [docs/README.md](docs/README.md) — documentation index
+- [docs/architecture.md](docs/architecture.md) — OPC layers and package boundaries
+- [docs/formats.md](docs/formats.md) — `.docx` / `.xlsx` / `.pptx` support matrix
+- [docs/development.md](docs/development.md) — local commands and CI
 
 ## Tests
 
@@ -104,6 +113,18 @@ go test ./...
 
 Higher-level features (full styles, tables, formulas, charts, slide masters, strict conformance with Word/Excel/PowerPoint) will be added incrementally while keeping the **stdlib-only** constraint unless the project explicitly changes that policy.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Issue and pull request templates live under [`.github/`](.github/).
+
+## Code of conduct
+
+See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+## Security
+
+See [SECURITY.md](SECURITY.md).
+
 ## License
 
-*(Add a SPDX license identifier and `LICENSE` file when you publish the repository.)*
+[MIT](LICENSE). SPDX-License-Identifier: MIT.
