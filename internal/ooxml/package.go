@@ -7,28 +7,62 @@ import (
 	"strings"
 )
 
+// OpenOptions configures zip-bomb protection thresholds for [OpenWithOptions].
+// A zero value for any field means "no limit" — use [Open] to get safe defaults.
+type OpenOptions struct {
+	MaxBytes     int64 // max total uncompressed bytes across all parts; 0 = unlimited
+	MaxParts     int   // max number of ZIP entries; 0 = unlimited
+	MaxPartBytes int64 // max uncompressed bytes per individual part; 0 = unlimited
+}
+
+// defaultOpenOptions are the limits applied by [Open].
+var defaultOpenOptions = OpenOptions{
+	MaxBytes:     1 << 30,        // 1 GiB
+	MaxParts:     10_000,
+	MaxPartBytes: 256 << 20,      // 256 MiB
+}
+
 // Package is an opened OOXML OPC package (ZIP + parsed metadata).
 type Package struct {
 	z     *zip.Reader
 	ct    *ContentTypes
 	files map[string]*zip.File // normalized "/part" -> zip file
+	opts  OpenOptions          // size limits for subsequent reads
 }
 
-// Open reads an OOXML package from a ZIP reader positioned at ra, size.
+// Open reads an OOXML package with safe default size limits (1 GiB total, 256 MiB per part,
+// 10 000 parts). For custom limits use [OpenWithOptions].
 func Open(ra io.ReaderAt, size int64) (*Package, error) {
+	return OpenWithOptions(ra, size, defaultOpenOptions)
+}
+
+// OpenWithOptions reads an OOXML package applying the given zip-bomb protection limits.
+// Zero values in opts mean "no limit" for that dimension.
+func OpenWithOptions(ra io.ReaderAt, size int64, opts OpenOptions) (*Package, error) {
 	z, err := zip.NewReader(ra, size)
 	if err != nil {
 		return nil, ErrInvalidArchive
 	}
-	p := &Package{z: z, files: make(map[string]*zip.File)}
+	if opts.MaxParts > 0 && len(z.File) > opts.MaxParts {
+		return nil, ErrTooManyParts
+	}
+	p := &Package{z: z, files: make(map[string]*zip.File), opts: opts}
+	var totalUncompressed int64
 	for _, f := range z.File {
-		name := f.Name
-		name = strings.TrimPrefix(name, "./")
+		name := strings.TrimPrefix(f.Name, "./")
 		key, err := NormalizePartName("/" + name)
 		if err != nil {
 			return nil, err
 		}
 		p.files[key] = f
+		// Pre-check using ZIP header (not authenticated — enforced again at read time).
+		if opts.MaxPartBytes > 0 && int64(f.UncompressedSize64) > opts.MaxPartBytes {
+			return nil, ErrPackageTooLarge
+		}
+		totalUncompressed += int64(f.UncompressedSize64)
+		if opts.MaxBytes > 0 && totalUncompressed > opts.MaxBytes {
+			return nil, ErrPackageTooLarge
+		}
 	}
 	rc, err := p.OpenReader("[Content_Types].xml")
 	if err != nil {
@@ -86,7 +120,14 @@ func (p *Package) OpenReader(partName string) (io.ReadCloser, error) {
 	if f == nil {
 		return nil, ErrPartNotFound
 	}
-	return f.Open()
+	rc, err := f.Open()
+	if err != nil {
+		return nil, err
+	}
+	if p.opts.MaxPartBytes > 0 {
+		return &limitedReadCloser{rc: rc, limit: p.opts.MaxPartBytes}, nil
+	}
+	return rc, nil
 }
 
 // ReadFile reads an entire part into memory.
@@ -224,9 +265,10 @@ func joinResolveOPC(baseDir, rel string) (string, error) {
 		case "", ".":
 			continue
 		case "..":
-			if len(segs) > 0 {
-				segs = segs[:len(segs)-1]
+			if len(segs) == 0 {
+				return "", ErrPathTraversal
 			}
+			segs = segs[:len(segs)-1]
 		default:
 			segs = append(segs, t)
 		}
@@ -258,3 +300,21 @@ func (p *Package) WalkParts(fn func(partName string, zf *zip.File) error) error 
 	}
 	return nil
 }
+
+// limitedReadCloser enforces a per-part byte limit enforced during Read calls.
+type limitedReadCloser struct {
+	rc    io.ReadCloser
+	read  int64
+	limit int64
+}
+
+func (l *limitedReadCloser) Read(p []byte) (int, error) {
+	n, err := l.rc.Read(p)
+	l.read += int64(n)
+	if l.read > l.limit {
+		return n, ErrPackageTooLarge
+	}
+	return n, err
+}
+
+func (l *limitedReadCloser) Close() error { return l.rc.Close() }

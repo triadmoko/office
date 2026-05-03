@@ -56,5 +56,5 @@ func isWT(n xml.Name) bool {
 	if n.Local != "t" {
 		return false
 	}
-	return n.Space == ooxml.NSWordprocessingMain || n.Space == ""
+	return n.Space == ooxml.NSWordprocessingML || n.Space == ""
 }

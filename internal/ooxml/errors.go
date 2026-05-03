@@ -19,4 +19,10 @@ var (
 	ErrInvalidPartName = errors.New("ooxml: invalid part name")
 	// ErrPathTraversal indicates a part path contains a ".." segment or otherwise escapes package root.
 	ErrPathTraversal = errors.New("ooxml: path traversal in part name")
+	// ErrDuplicatePart indicates AddPart was called with a name already registered.
+	ErrDuplicatePart = errors.New("ooxml: duplicate part name")
+	// ErrPackageTooLarge indicates the package exceeds the configured size limit.
+	ErrPackageTooLarge = errors.New("ooxml: package exceeds size limit")
+	// ErrTooManyParts indicates the ZIP archive contains more entries than the configured limit.
+	ErrTooManyParts = errors.New("ooxml: too many parts in package")
 )
