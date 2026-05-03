@@ -35,7 +35,7 @@ Matrix: **Go 1.23.x** and **stable** on **ubuntu-latest**.
 
 ## Fuzzing (OPC / OOXML)
 
-`internal/ooxml` defines fuzz targets (`FuzzParseContentTypes`, `FuzzParseRelationships`, `FuzzResolveTarget`) in [`internal/ooxml/fuzz_test.go`](../internal/ooxml/fuzz_test.go). Contoh lokal singkat:
+`internal/ooxml` defines fuzz targets (`FuzzParseContentTypes`, `FuzzParseRelationships`, `FuzzResolveTarget`) in [`internal/ooxml/fuzz_test.go`](../internal/ooxml/fuzz_test.go). Quick local example:
 
 ```bash
 go test ./internal/ooxml -fuzz=FuzzParseContentTypes -fuzztime=30s

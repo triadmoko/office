@@ -6,22 +6,32 @@ This document tracks **what works today** versus **planned** work. The project g
 
 | Format | Extension | Package | Read | Write | Notes |
 |--------|-----------|---------|------|-------|--------|
-| Word | `.docx` | `docx` | Open package; **plain text** from `w:t` | **Minimal** one-paragraph document | Not a full Word feature set (styles, tables, images, etc.). |
+| Word | `.docx` | `docx` | Paragraph/run/table/list/section/styles/numbering model + `PlainText()` | `NewDocument` + builder + `Save`/`SaveFile`; `WriteMinimal` | See [docx.md](docx.md) for the feature matrix and examples. Not a full Word feature set (images, comments, etc.). |
 | Excel | `.xlsx` | `xlsx` | Open + **validate** main workbook part | **Not implemented** | Cell/sheet APIs to be added incrementally. |
 | PowerPoint | `.pptx` | `pptx` | Open + **validate** main presentation part | **Not implemented** | Slides/masters to be added incrementally. |
 
 ## DOCX (WordprocessingML)
 
-### Supported (subset)
+Up-to-date summary and per-feature examples: **[docx.md](docx.md)**.
 
-- Opening a package and locating the **main document** part (content type or root relationship).
-- **`PlainText()`**: concatenates text in `w:t` elements (common namespace; empty namespace tolerated for `t` in some files).
-- **`WriteMinimal`**: writes a tiny valid package (single run/paragraph).
-- **`Document.Write`**: round-trip via re-serialization through `PlainText` + `WriteMinimal` (loses structure beyond plain text).
+### Supported today (high level)
 
-### Not supported yet (examples)
+- **`Open` / `NewDocument`**: main parts `document.xml`, `styles.xml`, `numbering.xml` as supported by the current parser.
+- **Body**: paragraphs, runs, tables, bullet/numbered lists; paragraph properties (alignment, indent, spacing, style, numbering ref); pagination (`pageBreak`, `columnBreak`, `keepNext`, `keepLines`, `widowControl`, `pageBreakBefore`).
+- **Sections**: page size (A4/Letter), orientation, margins, break kind (`nextPage`, `continuous`, …), page number format & start per section.
+- **Tables**: borders, grid/column widths, row height, header row, `cantSplit`, merge (read), nested tables (read).
+- **Styles & numbering**: read style registry and numbering definitions; write default built-ins for new documents.
+- **Header/footer**: PAGE/NUMPAGES fields for documents from **`NewDocument`** only (`SetHeaderPageNumber` / `SetFooterPageNumber` + template).
+- **Fields**: TOC complex field (`AppendTOCField`) — entries filled after refresh in Microsoft Word.
+- **`PlainText()`**: aggregate text from `w:t` (quick summary).
+- **`WriteMinimal`**: minimal single paragraph/run (smoke test / hello world).
+- **`Save` / `SaveFile`**: re-serialize; round-trip retains unparsed parts per current implementation (`PartBytes`, etc.).
 
-- Tables, images, headers/footers, styles, numbering, revision markup, fields, etc.
+### Not supported or limited
+
+- Images, shapes, charts, comments, revision markup, macros (partial preservation only, file-dependent).
+- Full custom header/footer on `Open` → edit → `Save` (page-number setters are `NewDocument`-only).
+- TOC/PAGE field evaluation beyond host-app behavior (not computed in Go).
 
 ## XLSX (SpreadsheetML)
 

@@ -4,6 +4,7 @@ Project: [**office**](https://github.com/triadmoko/office) — Office Open XML (
 
 | Document | Description |
 |----------|-------------|
+| [DOCX guide](docx.md) | Word feature status, per-area code examples, limitations |
 | [Architecture](architecture.md) | OPC layout, packages, and layering |
 | [Formats](formats.md) | `.docx`, `.xlsx`, `.pptx` support matrix and limitations |
 | [Development](development.md) | Local workflow, CI, and links to contributor guides |

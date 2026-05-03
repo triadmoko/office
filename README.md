@@ -6,7 +6,7 @@ Open-source **Office Open XML (OOXML)** tooling in **pure Go** (standard library
 
 | Format | Package   | Current capability |
 |--------|-----------|--------------------|
-| Word   | `docx`    | Open packages, read plain text from `w:t`, write a minimal one-paragraph document, basic round-trip |
+| Word   | `docx`    | Read/write paragraphs, runs, tables, lists, sections, styles, numbering; PAGE header/footer (`NewDocument`); TOC fields — see [docs/docx.md](docs/docx.md) |
 | Excel  | `xlsx`    | Open and validate a workbook package; `Write` not implemented yet |
 | PowerPoint | `pptx` | Open and validate a presentation package; `Write` not implemented yet |
 
@@ -74,14 +74,12 @@ _ = pr.MainPart() // e.g. /ppt/presentation.xml
 
 ## CLI (`cmd/office`)
 
-Build and run:
+Single-file DOCX demo (cover, TOC, section break, body, table, lists, pagination):
 
 ```bash
 go build -o office ./cmd/office
-./office -write-docx out.docx -text "Hello from office"
+./office -o report.docx
 ```
-
-With no `-write-docx` flag, the binary prints a short usage line.
 
 ## Project layout
 
@@ -99,6 +97,7 @@ With no `-write-docx` flag, the binary prints a short usage line.
 ## Documentation
 
 - [docs/README.md](docs/README.md) — documentation index
+- [docs/docx.md](docs/docx.md) — DOCX feature guide and per-area examples
 - [docs/architecture.md](docs/architecture.md) — OPC layers and package boundaries
 - [docs/formats.md](docs/formats.md) — `.docx` / `.xlsx` / `.pptx` support matrix
 - [docs/development.md](docs/development.md) — local commands and CI
