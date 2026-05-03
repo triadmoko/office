@@ -24,7 +24,10 @@ func Open(ra io.ReaderAt, size int64) (*Package, error) {
 	for _, f := range z.File {
 		name := f.Name
 		name = strings.TrimPrefix(name, "./")
-		key := NormalizePartName("/" + name)
+		key, err := NormalizePartName("/" + name)
+		if err != nil {
+			return nil, err
+		}
 		p.files[key] = f
 	}
 	rc, err := p.OpenReader("[Content_Types].xml")
@@ -57,7 +60,10 @@ func (p *Package) OpenReader(partName string) (io.ReadCloser, error) {
 	if p == nil {
 		return nil, ErrPartNotFound
 	}
-	key := NormalizePartName(partName)
+	key, err := NormalizePartName(partName)
+	if err != nil {
+		return nil, err
+	}
 	f := p.files[key]
 	if f == nil {
 		alt := "/" + strings.TrimPrefix(key, "/")
@@ -66,7 +72,10 @@ func (p *Package) OpenReader(partName string) (io.ReadCloser, error) {
 		}
 	}
 	if f == nil {
-		zname := ZipEntryName(partName)
+		zname, err := ZipEntryName(partName)
+		if err != nil {
+			return nil, err
+		}
 		for k, zf := range p.files {
 			if strings.TrimPrefix(k, "/") == zname {
 				f = zf
@@ -99,9 +108,9 @@ func (p *Package) ZipReader() *zip.Reader {
 }
 
 // FileNames returns all part paths with a leading slash, sorted for stability.
-func (p *Package) FileNames() []string {
+func (p *Package) FileNames() ([]string, error) {
 	if p == nil || p.z == nil {
-		return nil
+		return nil, nil
 	}
 	out := make([]string, 0, len(p.z.File))
 	for _, f := range p.z.File {
@@ -109,21 +118,32 @@ func (p *Package) FileNames() []string {
 			continue
 		}
 		name := strings.TrimPrefix(f.Name, "./")
-		out = append(out, NormalizePartName("/"+name))
+		part, err := NormalizePartName("/" + name)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, part)
 	}
-	return out
+	return out, nil
 }
 
 // HasPart reports whether partName exists in the package.
+// Invalid partName values (see [NormalizePartName]) are treated as not present.
 func (p *Package) HasPart(partName string) bool {
 	if p == nil {
 		return false
 	}
-	key := NormalizePartName(partName)
+	key, err := NormalizePartName(partName)
+	if err != nil {
+		return false
+	}
 	if p.files[key] != nil {
 		return true
 	}
-	zname := ZipEntryName(partName)
+	zname, err := ZipEntryName(partName)
+	if err != nil {
+		return false
+	}
 	for k := range p.files {
 		if strings.TrimPrefix(k, "/") == zname {
 			return true
@@ -154,32 +174,41 @@ func (p *Package) RootRelationships() (*Relationships, error) {
 }
 
 // RelationshipBaseDir returns the OPC base directory for a .rels part
-// (e.g. /_rels/.rels -> /, /word/_rels/document.xml.rels -> /word/).
-func RelationshipBaseDir(relsPartPath string) string {
-	p := NormalizePartName(relsPartPath)
+// (e.g. /_rels/.rels -> /, /word/_rels/document.xml.rels -> /word).
+func RelationshipBaseDir(relsPartPath string) (string, error) {
+	p, err := NormalizePartName(relsPartPath)
+	if err != nil {
+		return "", err
+	}
 	const seg = "/_rels/"
 	i := strings.Index(p, seg)
 	if i < 0 {
-		return "/"
+		return "/", nil
 	}
 	if i == 0 {
-		return "/"
+		return "/", nil
 	}
 	return NormalizePartName(p[:i] + "/")
 }
 
 // ResolveTarget resolves a relationship Target relative to the .rels part path relsPart.
-func ResolveTarget(relsPart, target string) string {
+func ResolveTarget(relsPart, target string) (string, error) {
 	target = strings.TrimSpace(target)
 	if strings.HasPrefix(target, "/") {
 		return NormalizePartName(target)
 	}
-	base := RelationshipBaseDir(relsPart)
+	base, err := RelationshipBaseDir(relsPart)
+	if err != nil {
+		return "", err
+	}
 	return joinResolveOPC(base, target)
 }
 
-func joinResolveOPC(baseDir, rel string) string {
-	base := NormalizePartName(baseDir)
+func joinResolveOPC(baseDir, rel string) (string, error) {
+	base, err := NormalizePartName(baseDir)
+	if err != nil {
+		return "", err
+	}
 	if base != "/" {
 		base = strings.TrimSuffix(base, "/")
 	}
@@ -203,7 +232,7 @@ func joinResolveOPC(baseDir, rel string) string {
 		}
 	}
 	if len(segs) == 0 {
-		return "/"
+		return "/", nil
 	}
 	return NormalizePartName("/" + strings.Join(segs, "/"))
 }
@@ -219,7 +248,10 @@ func (p *Package) WalkParts(fn func(partName string, zf *zip.File) error) error 
 			continue
 		}
 		name := strings.TrimPrefix(f.Name, "./")
-		part := NormalizePartName("/" + name)
+		part, err := NormalizePartName("/" + name)
+		if err != nil {
+			return err
+		}
 		if err := fn(part, f); err != nil {
 			return err
 		}

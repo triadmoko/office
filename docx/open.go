@@ -44,7 +44,7 @@ func resolveMainDocument(pkg *ooxml.Package) (string, error) {
 	if r == nil || r.Target == "" {
 		return "", ErrNotDOCX
 	}
-	return ooxml.ResolveTarget("/_rels/.rels", r.Target), nil
+	return ooxml.ResolveTarget("/_rels/.rels", r.Target)
 }
 
 // MainPart returns the package part path of the main document (e.g. /word/document.xml).

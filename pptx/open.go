@@ -44,7 +44,7 @@ func resolveMainPresentation(pkg *ooxml.Package) (string, error) {
 	if r == nil || r.Target == "" {
 		return "", ErrNotPPTX
 	}
-	return ooxml.ResolveTarget("/_rels/.rels", r.Target), nil
+	return ooxml.ResolveTarget("/_rels/.rels", r.Target)
 }
 
 // MainPart returns the presentation part path (e.g. /ppt/presentation.xml).

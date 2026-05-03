@@ -33,7 +33,11 @@ func ParseContentTypes(r io.Reader) (*ContentTypes, error) {
 		return nil, err
 	}
 	for i := range ct.Override {
-		ct.Override[i].PartName = NormalizePartName(ct.Override[i].PartName)
+		norm, err := NormalizePartName(ct.Override[i].PartName)
+		if err != nil {
+			return nil, err
+		}
+		ct.Override[i].PartName = norm
 	}
 	return &ct, nil
 }

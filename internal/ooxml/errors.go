@@ -15,4 +15,8 @@ var (
 	ErrMalformedRelationships = errors.New("ooxml: malformed relationships")
 	// ErrPartNotFound indicates a requested part path is not in the package.
 	ErrPartNotFound = errors.New("ooxml: part not found")
+	// ErrInvalidPartName indicates an empty or malformed OPC part name.
+	ErrInvalidPartName = errors.New("ooxml: invalid part name")
+	// ErrPathTraversal indicates a part path contains a ".." segment or otherwise escapes package root.
+	ErrPathTraversal = errors.New("ooxml: path traversal in part name")
 )
