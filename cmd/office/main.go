@@ -4,17 +4,18 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/triadmoko/office/docx"
 )
 
-// contoh DOCX tunggal: sectPr, footer (PAGE/NUMPAGES), styles, paragraf, run,
-// page break, section break, numbering, tabel, Save.
+// contoh DOCX dalam satu fungsi: sampul + TOC + pemecah bagian (next page) + isi.
+// Daftar isi statis (bukan bidang TOC Word). Footer PAGE/NUMPAGES: perilaku global sesuai MVP paket docx.
 
 func main() {
 	out := flag.String("o", "office-sample.docx", "path file .docx keluaran")
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "Pembuat contoh DOCX (paket github.com/triadmoko/office/docx).\n\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "Pembuat contoh DOCX (github.com/triadmoko/office/docx).\n\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(flag.CommandLine.Output(), "\nContoh: %s -o laporan.docx\n", os.Args[0])
 	}
@@ -30,169 +31,202 @@ func main() {
 func writeSampleDocx(path string) error {
 	d := docx.NewDocument()
 
-	applySampleFooter(d)
-	applyFirstSectionLayout(d)
-
-	addCoverBlock(d)
-	addHeadingRegistryDemo(d)
-	addIndentAndAlignmentDemos(d)
-	addPageBreakDemo(d)
-	addRunFormattingDemo(d)
-	addListDemos(d)
-	addTableDemo(d)
-	addSectionBreakDemos(d)
-	addClosingParagraph(d)
-
-	return d.SaveFile(path)
-}
-
-// --- Footer (MVP: hanya NewDocument + Save) ---
-
-func applySampleFooter(d *docx.Document) {
 	d.SetFooterPageNumber(true)
 	d.SetFooterPageNumberTemplate(
 		"No. " + docx.FooterPlaceholderPage +
 			" / " + docx.FooterPlaceholderNumPages + " hal.",
 	)
-}
-
-// --- Section pertama: A4, portrait, margin ---
-
-func applyFirstSectionLayout(d *docx.Document) {
-	sec := d.SectionAt(0)
-	if sec == nil {
-		return
+	if sec := d.SectionAt(0); sec != nil {
+		sec.SetPageSize(docx.PageSizeA4)
+		sec.SetOrientation(docx.Portrait)
+		sec.SetMargins(docx.Margins{
+			Top: 1800, Bottom: 1800, Left: 1440, Right: 1440,
+			Header: 720, Footer: 720, Gutter: 0,
+		})
 	}
-	sec.SetPageSize(docx.PageSizeA4)
-	sec.SetOrientation(docx.Portrait)
-	// ~2,5 cm atas/bawah, ~2 cm kiri/kanan (1440 twip ≈ 1 inch)
-	sec.SetMargins(docx.Margins{
-		Top: 1800, Bottom: 1800, Left: 1440, Right: 1440,
-		Header: 720, Footer: 720, Gutter: 0,
-	})
-}
 
-// --- Judul & catatan ---
-
-func addCoverBlock(d *docx.Document) {
+	// ----- Sampul -----
 	title := d.Body().Paragraphs()[0]
-	r := title.AppendRun("Contoh Office (DOCX)")
-	r.SetBold(true)
-	r.SetSize(36) // 18 pt
+	title.SetAlignment(docx.AlignCenter)
+	title.SetSpacing(docx.Spacing{After: 360})
+	rt := title.AppendRun("LAPORAN CONTOH")
+	rt.SetBold(true)
+	rt.SetSize(56)
 
-	note := d.Body().AppendParagraph()
-	note.AppendRun("Catatan: footer kanan memakai template No. + PAGE + NUMPAGES. " +
-		"Setelah pemecah halaman, Word memperbarui nomor per halaman.")
-}
-
-// --- Styles (registry) ---
-
-func addHeadingRegistryDemo(d *docx.Document) {
-	st := d.Styles()
-	if st == nil {
-		return
+	sub := d.Body().AppendParagraph()
+	sub.SetAlignment(docx.AlignCenter)
+	sub.SetSpacing(docx.Spacing{After: 720})
+	rs := sub.AppendRun("Paket github.com/triadmoko/office/docx")
+	rs.SetSize(28)
+	for i := 0; i < 8; i++ {
+		sp := d.Body().AppendParagraph()
+		sp.SetAlignment(docx.AlignCenter)
+		sp.AppendRun("\u00a0")
 	}
-	h := st.ByID("Heading1")
-	if h == nil || h.Name() == "" {
-		return
+	meta := d.Body().AppendParagraph()
+	meta.SetAlignment(docx.AlignCenter)
+	meta.AppendRun("Disusun untuk demonstrasi API")
+	ver := d.Body().AppendParagraph()
+	ver.SetAlignment(docx.AlignCenter)
+	ver.AppendRun("Setelah TOC: SetSectionBreak(nextPage) memisahkan bagian depan dan isi utama.")
+
+	pCoverEnd := d.Body().AppendParagraph()
+	pCoverEnd.SetAlignment(docx.AlignCenter)
+	pCoverEnd.AppendRun("Halaman berikutnya: daftar isi.")
+	pCoverEnd.AppendPageBreak()
+
+	// ----- Daftar isi (manual) -----
+	hTOC := d.Body().AppendParagraph()
+	hTOC.SetSpacing(docx.Spacing{After: 240})
+	hTOCr := hTOC.AppendRun("Daftar isi")
+	hTOCr.SetBold(true)
+	hTOCr.SetSize(32)
+	pTOCIntro := d.Body().AppendParagraph()
+	pTOCIntro.SetSpacing(docx.Spacing{After: 180})
+	pTOCIntro.AppendRun("Entri manual (titik). TOC otomatis Word = Tier 3.")
+
+	tocEntries := []struct{ title, page string }{
+		{"1. Pendahuluan", "3"},
+		{"2. Format paragraf & perataan", "3"},
+		{"3. Format run (tebal, warna, …)", "4"},
+		{"4. Daftar & tabel", "4"},
 	}
-	p := d.Body().AppendParagraph()
-	p.AppendRun("Style Heading1 terdaftar sebagai: " + h.Name())
-}
+	const tocWidth = 62
+	for _, e := range tocEntries {
+		p := d.Body().AppendParagraph()
+		p.SetSpacing(docx.Spacing{After: 120})
+		dots := tocWidth - len(e.title) - len(e.page)
+		if dots < 3 {
+			dots = 3
+		}
+		line := e.title + " " + strings.Repeat(".", dots) + " " + e.page
+		r := p.AppendRun(line)
+		r.SetSize(22)
+	}
 
-// --- Paragraf: indent, spacing, perataan ---
+	// ----- Pemecah bagian: akhir front matter → section baru (isi utama), next page, portrait -----
+	pSect := d.Body().AppendParagraph()
+	pSect.SetSpacing(docx.Spacing{Before: 240, After: 120})
+	pSect.AppendRun("Di bawah ini w:sectPr + w:type nextPage: section baru dimulai setelah paragraf ini (biasanya halaman baru).")
+	pSect.SetSectionBreak(docx.SectionBreakConfig{
+		PageKind: docx.PageSizeA4,
+		Orient:   docx.Portrait,
+		Break:    docx.SectionBreakNextPage,
+	})
 
-func addIndentAndAlignmentDemos(d *docx.Document) {
+	if sec := d.SectionAt(1); sec != nil {
+		sec.SetPageSize(docx.PageSizeA4)
+		sec.SetOrientation(docx.Portrait)
+		sec.SetMargins(docx.Margins{
+			Top: 1800, Bottom: 1800, Left: 1440, Right: 1440,
+			Header: 720, Footer: 720, Gutter: 0,
+		})
+	}
+
+	// ----- Isi utama -----
+	h1 := d.Body().AppendParagraph()
+	h1.SetSpacing(docx.Spacing{Before: 120, After: 200})
+	h1r := h1.AppendRun("1. Pendahuluan")
+	h1r.SetBold(true)
+	h1r.SetSize(28)
+	pIntro := d.Body().AppendParagraph()
+	pIntro.SetSpacing(docx.Spacing{After: 200})
+	pIntro.AppendRun("Ini isi utama setelah section break. Di bawah: demo paragraf, run, daftar, tabel.")
+
+	if st := d.Styles(); st != nil {
+		if h := st.ByID("Heading1"); h != nil && h.Name() != "" {
+			d.Body().AppendParagraph().AppendRun("Heading1 terdaftar sebagai: " + h.Name())
+		}
+	}
+
+	h2 := d.Body().AppendParagraph()
+	h2.SetSpacing(docx.Spacing{Before: 240, After: 160})
+	h2r := h2.AppendRun("2. Format paragraf")
+	h2r.SetBold(true)
+	h2r.SetSize(28)
 	pInd := d.Body().AppendParagraph()
 	pInd.SetIndent(docx.Indent{Left: 720, FirstLine: 720})
 	pInd.SetSpacing(docx.Spacing{After: 240})
-	pInd.AppendRun("Paragraf dengan indent kiri + baris pertama (w:ind) dan jarak setelah paragraf (w:spacing). " +
-		"Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
+	pInd.AppendRun("Indent + jarak setelah paragraf. Lorem ipsum dolor sit amet.")
 
 	pAL := d.Body().AppendParagraph()
 	pAL.SetAlignment(docx.AlignLeft)
-	pAL.AppendRun("[Kiri] Teks rata kiri (default).")
+	pAL.AppendRun("[Kiri] Teks rata kiri.")
 
 	pAC := d.Body().AppendParagraph()
 	pAC.SetAlignment(docx.AlignCenter)
-	pAC.AppendRun("[Tengah] Judul atau baris singkat di tengah.")
+	pAC.AppendRun("[Tengah] Judul singkat.")
 
 	pAR := d.Body().AppendParagraph()
 	pAR.SetAlignment(docx.AlignRight)
-	pAR.AppendRun("[Kanan] Catatan atau tanggal di kanan.")
+	pAR.AppendRun("[Kanan] Catatan di kanan.")
 
 	pAJ := d.Body().AppendParagraph()
 	pAJ.SetAlignment(docx.AlignJustify)
-	pAJ.AppendRun("[Justify] Paragraf panjang: Lorem ipsum dolor sit amet, consectetur adipiscing elit. " +
-		"Integer vitae velit non ligula faucibus auctor. Donec vitae sapien ut libero venenatis faucibus.")
-}
+	pAJ.AppendRun("[Justify] Paragraf panjang: Lorem ipsum dolor sit amet, consectetur adipiscing elit.")
 
-// --- Pemecah halaman ---
+	pPg := d.Body().AppendParagraph()
+	pPg.SetSpacing(docx.Spacing{Before: 120, After: 120})
+	pPg.AppendRun("Page break berikutnya untuk demo run.")
+	pPg.AppendPageBreak()
 
-func addPageBreakDemo(d *docx.Document) {
-	p1 := d.Body().AppendParagraph()
-	p1.AppendRun("Halaman 1 — di bawah ini page break.")
-	p1.AppendPageBreak()
-
-	p2 := d.Body().AppendParagraph()
-	p2.AppendRun("Halaman 2 — cek footer menampilkan nomor 2.")
-}
-
-// --- Run: bold, italic, underline, warna, highlight, strike, em, super/sub ---
-
-func addRunFormattingDemo(d *docx.Document) {
-	p := d.Body().AppendParagraph()
-	p.AppendRun("Teks biasa, ")
-	rBold := p.AppendRun("tebal")
+	h3 := d.Body().AppendParagraph()
+	h3.SetSpacing(docx.Spacing{After: 160})
+	h3r := h3.AppendRun("3. Format run")
+	h3r.SetBold(true)
+	h3r.SetSize(28)
+	pRun := d.Body().AppendParagraph()
+	pRun.AppendRun("Teks biasa, ")
+	rBold := pRun.AppendRun("tebal")
 	rBold.SetBold(true)
-	p.AppendRun(", ")
-	rIt := p.AppendRun("miring")
+	pRun.AppendRun(", ")
+	rIt := pRun.AppendRun("miring")
 	rIt.SetItalic(true)
-	p.AppendRun(", ")
-	rU := p.AppendRun("garis bawah")
+	pRun.AppendRun(", ")
+	rU := pRun.AppendRun("garis bawah")
 	rU.SetUnderline(true)
-	p.AppendRun(", ")
-	rC := p.AppendRun("warna")
+	pRun.AppendRun(", ")
+	rC := pRun.AppendRun("warna")
 	rC.SetColor("C00000")
 	rC.SetBold(true)
-	p.AppendRun(", ")
-	rHi := p.AppendRun("sorot")
+	pRun.AppendRun(", ")
+	rHi := pRun.AppendRun("sorot")
 	rHi.SetHighlight("yellow")
-	p.AppendRun(", ")
-	rSt := p.AppendRun("coret")
+	pRun.AppendRun(", ")
+	rSt := pRun.AppendRun("coret")
 	rSt.SetStrike(true)
-	p.AppendRun(", ")
-	rEm := p.AppendRun("Hellow selamat siang")
+	pRun.AppendRun(", ")
+	rEm := pRun.AppendRun("emphasis dot")
 	rEm.SetEmphasis("dot")
-	p.AppendRun(", ")
-	p.AppendRun("x")
-	rSup := p.AppendRun("2")
+	pRun.AppendRun(", x")
+	rSup := pRun.AppendRun("2")
 	rSup.SetSubSuperscript(docx.VertAlignSuperscript)
-	p.AppendRun(" / H")
-	rSub := p.AppendRun("2")
+	pRun.AppendRun(" / H")
+	rSub := pRun.AppendRun("2")
 	rSub.SetSubSuperscript(docx.VertAlignSubscript)
-	p.AppendRun("O.")
-}
+	pRun.AppendRun("O.")
 
-// --- Daftar ---
-
-func addListDemos(d *docx.Document) {
-	d.Body().AppendParagraph().AppendRun("Daftar bullet:")
+	h4 := d.Body().AppendParagraph()
+	h4.SetSpacing(docx.Spacing{Before: 240, After: 160})
+	h4r := h4.AppendRun("4. Daftar")
+	h4r.SetBold(true)
+	h4r.SetSize(28)
+	d.Body().AppendParagraph().AppendRun("Bullet:")
 	bl := d.Body().AppendList(docx.ListBullet)
 	bl.AppendItem("Butir pertama")
 	bl.AppendItem("Butir kedua")
 	bl.AppendItem("Butir ketiga")
-
-	d.Body().AppendParagraph().AppendRun("Daftar bernomor:")
+	d.Body().AppendParagraph().AppendRun("Bernomor:")
 	nl := d.Body().AppendList(docx.ListNumbered)
 	nl.AppendItem("Langkah satu")
 	nl.AppendItem("Langkah dua")
-}
 
-// --- Tabel ---
-
-func addTableDemo(d *docx.Document) {
-	d.Body().AppendParagraph().AppendRun("Tabel (border + isi sel):")
+	h5 := d.Body().AppendParagraph()
+	h5.SetSpacing(docx.Spacing{Before: 240, After: 160})
+	h5r := h5.AppendRun("5. Tabel")
+	h5r.SetBold(true)
+	h5r.SetSize(28)
+	d.Body().AppendParagraph().AppendRun("Tabel dengan border:")
 	tbl := d.Body().AppendTable(3, 2)
 	tbl.SetGridColWidths([]int64{2000, 2000})
 	tbl.Rows()[0].SetHeight(500, docx.RowHeightAtLeast)
@@ -201,41 +235,19 @@ func addTableDemo(d *docx.Document) {
 		docx.BorderStyle{Color: "4472C4", Size: 8, Kind: docx.BorderSingle},
 	)
 	headers := []string{"Kolom A", "Kolom B"}
-	for c, h := range headers {
+	for c, hn := range headers {
 		cell := tbl.Rows()[0].Cells()[c]
-		rh := cell.Paragraphs()[0].AppendRun(h)
+		rh := cell.Paragraphs()[0].AppendRun(hn)
 		rh.SetBold(true)
 	}
-	tbl.Rows()[1].Cells()[0].Paragraphs()[0].AppendRun("Sel baris 2, kolom 1")
-	tbl.Rows()[1].Cells()[1].Paragraphs()[0].AppendRun("Sel baris 2, kolom 2")
-	tbl.Rows()[2].Cells()[0].Paragraphs()[0].AppendRun("Teks panjang di satu sel (uji wrap).")
+	tbl.Rows()[1].Cells()[0].Paragraphs()[0].AppendRun("Sel 2,1")
+	tbl.Rows()[1].Cells()[1].Paragraphs()[0].AppendRun("Sel 2,2")
+	tbl.Rows()[2].Cells()[0].Paragraphs()[0].AppendRun("Teks panjang (wrap).")
 	tbl.Rows()[2].Cells()[1].Paragraphs()[0].AppendRun("OK")
-}
 
-// --- Pemecah bagian: lanskap lalu portrait (continuous) ---
+	pEnd := d.Body().AppendParagraph()
+	pEnd.SetSpacing(docx.Spacing{Before: 360})
+	pEnd.AppendRun("Selesai — periksa struktur: sampul + TOC (section pertama), lalu section break next page, lalu isi.")
 
-func addSectionBreakDemos(d *docx.Document) {
-	pLandscape := d.Body().AppendParagraph()
-	pLandscape.AppendRun("Pemecah bagian berikut: section berikutnya lanskap.")
-	pLandscape.SetSectionBreak(docx.SectionBreakConfig{
-		PageKind: docx.PageSizeA4,
-		Orient:   docx.Landscape,
-		Break:    docx.SectionBreakNextPage,
-	})
-	d.Body().AppendParagraph().AppendRun(
-		"Isi di section lanskap. Atur lewat d.SectionAt(i) sesuai indeks bagian.")
-
-	pPortrait := d.Body().AppendParagraph()
-	pPortrait.AppendRun("Pemecah bagian continuous: orientasi portrait lagi (tanpa halaman baru wajib).")
-	pPortrait.SetSectionBreak(docx.SectionBreakConfig{
-		PageKind: docx.PageSizeA4,
-		Orient:   docx.Portrait,
-		Break:    docx.SectionBreakContinuous,
-	})
-	d.Body().AppendParagraph().AppendRun(
-		"Isi setelah section portrait (continuous).")
-}
-
-func addClosingParagraph(d *docx.Document) {
-	d.Body().AppendParagraph().AppendRun("Akhir contoh — buka di Word/LibreOffice untuk memeriksa tampilan.")
+	return d.SaveFile(path)
 }
