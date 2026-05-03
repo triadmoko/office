@@ -509,10 +509,8 @@ func readTextUntilEnd(dec *xml.Decoder, local string) ([]byte, error) {
 }
 
 func parseRPr(dec *xml.Decoder, start xml.StartElement, run *Run) error {
-	var raw bytes.Buffer
-	if err := encodeToken(&raw, start); err != nil {
-		return err
-	}
+	_ = start
+	run.RPr.RawRPr = nil
 	for {
 		tok, err := dec.Token()
 		if err != nil {
@@ -520,146 +518,92 @@ func parseRPr(dec *xml.Decoder, start xml.StartElement, run *Run) error {
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
-			if isWML(t.Name.Space, t.Name.Local) {
-				switch t.Name.Local {
-				case "b":
-					if !isOff(valAttr(t.Attr)) {
-						run.RPr.Bold = true
-					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				case "i":
-					if !isOff(valAttr(t.Attr)) {
-						run.RPr.Italic = true
-					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				case "u":
-					if valAttr(t.Attr) != "" && !strings.EqualFold(valAttr(t.Attr), "none") {
-						run.RPr.Underline = true
-					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				case "strike", "dstrike":
-					if !isOff(valAttr(t.Attr)) {
-						run.RPr.Strike = true
-					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				case "sz", "szCs":
-					if v := valAttr(t.Attr); v != "" {
-						if n, err := strconv.Atoi(v); err == nil && n > 0 {
-							if run.RPr.FontSizeHalf == 0 || t.Name.Local == "sz" {
-								run.RPr.FontSizeHalf = n
-							}
+			if !isWML(t.Name.Space, t.Name.Local) {
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+				continue
+			}
+			switch t.Name.Local {
+			case "b":
+				if !isOff(valAttr(t.Attr)) {
+					run.RPr.Bold = true
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "i":
+				if !isOff(valAttr(t.Attr)) {
+					run.RPr.Italic = true
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "u":
+				if valAttr(t.Attr) != "" && !strings.EqualFold(valAttr(t.Attr), "none") {
+					run.RPr.Underline = true
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "strike", "dstrike":
+				if !isOff(valAttr(t.Attr)) {
+					run.RPr.Strike = true
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "sz", "szCs":
+				if v := valAttr(t.Attr); v != "" {
+					if n, err := strconv.Atoi(v); err == nil && n > 0 {
+						if run.RPr.FontSizeHalf == 0 || t.Name.Local == "sz" {
+							run.RPr.FontSizeHalf = n
 						}
 					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				case "color":
-					run.RPr.Color = strings.TrimSpace(valAttr(t.Attr))
-					if run.RPr.Color == "auto" {
-						run.RPr.Color = ""
-					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				case "rFonts":
-					if a := fontAttr(t.Attr, "ascii"); a != "" {
-						run.RPr.FontName = a
-					} else if h := fontAttr(t.Attr, "hAnsi"); h != "" {
-						run.RPr.FontName = h
-					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				case "vertAlign":
-					switch strings.ToLower(valAttr(t.Attr)) {
-					case "superscript":
-						run.RPr.VertAlign = VertAlignSuperscript
-					case "subscript":
-						run.RPr.VertAlign = VertAlignSubscript
-					default:
-						run.RPr.VertAlign = VertAlignBaseline
-					}
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
-				default:
-					sub, err := captureSubtree(dec, t)
-					if err != nil {
-						return err
-					}
-					if _, err := raw.Write(sub); err != nil {
-						return err
-					}
-					continue
 				}
-			}
-			sub, err := captureSubtree(dec, t)
-			if err != nil {
-				return err
-			}
-			if _, err := raw.Write(sub); err != nil {
-				return err
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "color":
+				run.RPr.Color = strings.TrimSpace(valAttr(t.Attr))
+				if run.RPr.Color == "auto" {
+					run.RPr.Color = ""
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "rFonts":
+				if a := fontAttr(t.Attr, "ascii"); a != "" {
+					run.RPr.FontName = a
+				} else if h := fontAttr(t.Attr, "hAnsi"); h != "" {
+					run.RPr.FontName = h
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			case "vertAlign":
+				switch strings.ToLower(valAttr(t.Attr)) {
+				case "superscript":
+					run.RPr.VertAlign = VertAlignSuperscript
+				case "subscript":
+					run.RPr.VertAlign = VertAlignSubscript
+				default:
+					run.RPr.VertAlign = VertAlignBaseline
+				}
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
+			default:
+				if err := skipSubtree(dec, t); err != nil {
+					return err
+				}
 			}
 		case xml.EndElement:
 			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "rPr" {
-				run.RPr.RawRPr = raw.Bytes()
 				return nil
 			}
-			if err := encodeToken(&raw, t); err != nil {
-				return err
-			}
 		case xml.CharData:
-			if _, err := raw.Write([]byte(t)); err != nil {
-				return err
-			}
+			// ignore
 		}
 	}
 }
@@ -727,10 +671,8 @@ func parseTable(dec *xml.Decoder, start xml.StartElement) (*Table, error) {
 }
 
 func parseTblPr(dec *xml.Decoder, start xml.StartElement, tbl *Table) error {
-	var raw bytes.Buffer
-	if err := encodeToken(&raw, start); err != nil {
-		return err
-	}
+	_ = start
+	tbl.Props.Raw = nil
 	for {
 		tok, err := dec.Token()
 		if err != nil {
@@ -740,34 +682,20 @@ func parseTblPr(dec *xml.Decoder, start xml.StartElement, tbl *Table) error {
 		case xml.StartElement:
 			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "tblW" {
 				parseTcW(t, &tbl.Props.Width)
-				sub, err := captureSubtree(dec, t)
-				if err != nil {
-					return err
-				}
-				if _, err := raw.Write(sub); err != nil {
+				if err := skipSubtree(dec, t); err != nil {
 					return err
 				}
 				continue
 			}
-			sub, err := captureSubtree(dec, t)
-			if err != nil {
-				return err
-			}
-			if _, err := raw.Write(sub); err != nil {
+			if err := skipSubtree(dec, t); err != nil {
 				return err
 			}
 		case xml.EndElement:
 			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "tblPr" {
-				tbl.Props.Raw = raw.Bytes()
 				return nil
 			}
-			if err := encodeToken(&raw, t); err != nil {
-				return err
-			}
 		case xml.CharData:
-			if _, err := raw.Write([]byte(t)); err != nil {
-				return err
-			}
+			// ignore
 		}
 	}
 }
@@ -852,10 +780,8 @@ func parseTableCell(dec *xml.Decoder, start xml.StartElement) (*TableCell, error
 }
 
 func parseTcPr(dec *xml.Decoder, start xml.StartElement, cell *TableCell) error {
-	var raw bytes.Buffer
-	if err := encodeToken(&raw, start); err != nil {
-		return err
-	}
+	_ = start
+	cell.TcPr.RawTcPr = nil
 	for {
 		tok, err := dec.Token()
 		if err != nil {
@@ -905,27 +831,22 @@ func parseTcPr(dec *xml.Decoder, start xml.StartElement, cell *TableCell) error 
 						return err
 					}
 					continue
+				default:
+					if err := skipSubtree(dec, t); err != nil {
+						return err
+					}
+					continue
 				}
 			}
-			sub, err := captureSubtree(dec, t)
-			if err != nil {
-				return err
-			}
-			if _, err := raw.Write(sub); err != nil {
+			if err := skipSubtree(dec, t); err != nil {
 				return err
 			}
 		case xml.EndElement:
 			if isWML(t.Name.Space, t.Name.Local) && t.Name.Local == "tcPr" {
-				cell.TcPr.RawTcPr = raw.Bytes()
 				return nil
 			}
-			if err := encodeToken(&raw, t); err != nil {
-				return err
-			}
 		case xml.CharData:
-			if _, err := raw.Write([]byte(t)); err != nil {
-				return err
-			}
+			// ignore
 		}
 	}
 }
@@ -1041,26 +962,6 @@ func parseBorderDef(se xml.StartElement) *BorderDef {
 		}
 	}
 	return b
-}
-
-func encodeToken(w io.Writer, tok interface{}) error {
-	var b bytes.Buffer
-	enc := xml.NewEncoder(&b)
-	switch t := tok.(type) {
-	case xml.StartElement:
-		if err := enc.EncodeToken(t); err != nil {
-			return err
-		}
-	case xml.EndElement:
-		if err := enc.EncodeToken(t); err != nil {
-			return err
-		}
-	default:
-		return nil
-	}
-	enc.Flush()
-	_, err := w.Write(b.Bytes())
-	return err
 }
 
 func captureSubtree(dec *xml.Decoder, start xml.StartElement) ([]byte, error) {
