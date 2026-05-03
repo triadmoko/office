@@ -2,12 +2,77 @@ package docx
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/triadmoko/office/internal/wml"
 )
+
+func TestFooterPageNumberNewDocument(t *testing.T) {
+	d := NewDocument()
+	d.SetFooterPageNumber(true)
+	d.Body().AppendParagraph().AppendRun("hi")
+	var buf bytes.Buffer
+	if err := d.Save(&buf); err != nil {
+		t.Fatal(err)
+	}
+	d2, err := Open(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg := d2.Package()
+	if pkg == nil {
+		t.Fatal("nil package")
+	}
+	names, err := pkg.FileNames()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, n := range names {
+		if strings.Contains(strings.ToLower(n), "footer1") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("footer part missing: %v", names)
+	}
+}
+
+func TestFooterPageNumberTemplateRoundTrip(t *testing.T) {
+	d := NewDocument()
+	d.SetFooterPageNumber(true)
+	d.SetFooterPageNumberTemplate("Page " + FooterPlaceholderPage + " of " + FooterPlaceholderNumPages)
+	d.Body().AppendParagraph().AppendRun("x")
+	var buf bytes.Buffer
+	if err := d.Save(&buf); err != nil {
+		t.Fatal(err)
+	}
+	d2, err := Open(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rc, err := d2.Package().OpenReader("/word/footer1.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	footerXML, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(footerXML)
+	if !strings.Contains(s, "Page ") || !strings.Contains(s, " of ") {
+		t.Fatalf("footer literal missing: %s", s)
+	}
+	if !strings.Contains(s, " PAGE ") || !strings.Contains(s, " NUMPAGES ") {
+		t.Fatalf("footer fields missing: %s", s)
+	}
+}
 
 func TestSectionBreakTypeContinuousRoundTrip(t *testing.T) {
 	d := NewDocument()

@@ -13,6 +13,7 @@ import (
 const (
 	relTypeStyles    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles"
 	relTypeNumbering = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering"
+	relTypeFooter    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
 )
 
 // Document is an opened or newly built .docx (WordprocessingML) package.
@@ -30,6 +31,11 @@ type Document struct {
 	origCT   *ooxml.ContentTypes
 
 	fromNew bool
+
+	// footerPageNumber: when true, Save (NewDocument only) emits /word/footer1.xml with PAGE field and footerReference in sectPr.
+	footerPageNumber bool
+	// footerPageTemplate: literal + placeholders [FooterPlaceholderPage] / [FooterPlaceholderNumPages]; kosong = default "Hal. {{PAGE}}".
+	footerPageTemplate string
 }
 
 // Open opens a DOCX from a ZIP-backed reader (e.g. *os.File or bytes.NewReader data).
@@ -46,6 +52,26 @@ func Open(ra io.ReaderAt, size int64) (*Document, error) {
 		return nil, ErrMissingMainPart
 	}
 	return &Document{pkg: pkg, main: main}, nil
+}
+
+// SetFooterPageNumber enables a default footer with a PAGE field (nomor halaman) on Save.
+// MVP: only for documents from [NewDocument]; [Open] returns [ErrFooterPageNumberOpenDoc] if this is set when saving.
+func (d *Document) SetFooterPageNumber(v bool) {
+	if d == nil {
+		return
+	}
+	d.footerPageNumber = v
+}
+
+// SetFooterPageNumberTemplate mengatur teks footer bila [SetFooterPageNumber](true): gabungan teks biasa
+// dan placeholder (case-sensitive) [FooterPlaceholderPage] (halaman saat ini) serta [FooterPlaceholderNumPages] (jumlah halaman).
+// Contoh: "No. {{PAGE}}", "Page {{PAGE}} of {{NUMPAGES}}", "Hal. {{PAGE}} / {{NUMPAGES}}".
+// Jika string kosong (atau hanya spasi) saat Save dengan footer aktif, dipakai default "Hal. {{PAGE}}".
+func (d *Document) SetFooterPageNumberTemplate(layout string) {
+	if d == nil {
+		return
+	}
+	d.footerPageTemplate = layout
 }
 
 // NewDocument returns an empty in-memory document ready for the builder API and Save.

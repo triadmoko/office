@@ -31,8 +31,14 @@ func escapeAttr(s string) string {
 	return s
 }
 
+// MarshalDocumentOpts controls optional marshal behavior for [MarshalDocumentXML].
+type MarshalDocumentOpts struct {
+	// FooterRelationshipID is r:id for w:footerReference (e.g. "rId2"); empty skips footer reference.
+	FooterRelationshipID string
+}
+
 // MarshalDocumentXML serializes the main document body to WordprocessingML.
-func MarshalDocumentXML(doc *wml.Document) ([]byte, error) {
+func MarshalDocumentXML(doc *wml.Document, opts MarshalDocumentOpts) ([]byte, error) {
 	if doc == nil {
 		return nil, fmt.Errorf("docx: nil document model")
 	}
@@ -46,9 +52,13 @@ func MarshalDocumentXML(doc *wml.Document) ([]byte, error) {
 		}
 	}
 	if len(doc.Body.SectPr) > 0 {
-		b.Write(doc.Body.SectPr)
+		if opts.FooterRelationshipID != "" {
+			b.Write(injectFooterReferenceIntoSectPr(doc.Body.SectPr, opts.FooterRelationshipID))
+		} else {
+			b.Write(doc.Body.SectPr)
+		}
 	} else {
-		b.WriteString(`<w:sectPr><w:pgSz w:w="` + strconv.FormatInt(wml.PageA4W, 10) + `" w:h="` + strconv.FormatInt(wml.PageA4H, 10) + `"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>`)
+		b.WriteString(defaultBodyClosingSectPr(opts.FooterRelationshipID))
 	}
 	b.WriteString(`</w:body></w:document>`)
 	return b.Bytes(), nil

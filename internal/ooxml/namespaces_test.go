@@ -85,6 +85,7 @@ func TestContentTypeConstantsNonEmpty(t *testing.T) {
 		{"CTWordSettings", CTWordSettings},
 		{"CTWordFontTable", CTWordFontTable},
 		{"CTWordWebSettings", CTWordWebSettings},
+		{"CTWordFooter", CTWordFooter},
 		{"CTSpreadsheetMain", CTSpreadsheetMain},
 		{"CTPresentationMain", CTPresentationMain},
 		{"CTTheme", CTTheme},

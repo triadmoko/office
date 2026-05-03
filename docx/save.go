@@ -19,7 +19,16 @@ func (d *Document) Save(w io.Writer) error {
 	if _, err := d.ensureLoaded(); err != nil {
 		return err
 	}
-	docXML, err := MarshalDocumentXML(d.wmlDoc)
+	if d.footerPageNumber && !d.fromNew {
+		return ErrFooterPageNumberOpenDoc
+	}
+	numXML := MarshalNumberingXML(d.numbering)
+	withNum := numXML != nil
+	footerRID := ""
+	if d.footerPageNumber {
+		footerRID = documentFooterRelID(withNum)
+	}
+	docXML, err := MarshalDocumentXML(d.wmlDoc, MarshalDocumentOpts{FooterRelationshipID: footerRID})
 	if err != nil {
 		return fmt.Errorf("docx save: marshal document: %w", err)
 	}
@@ -27,7 +36,6 @@ func (d *Document) Save(w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("docx save: marshal styles: %w", err)
 	}
-	numXML := MarshalNumberingXML(d.numbering)
 
 	pw := ooxml.NewPackageWriter(w)
 
@@ -37,6 +45,9 @@ func (d *Document) Save(w io.Writer) error {
 	}
 	if numXML != nil {
 		override["/word/numbering.xml"] = numXML
+	}
+	if d.footerPageNumber {
+		override["/word/footer1.xml"] = marshalFooterPageXML(d.footerPageTemplate)
 	}
 	override["/docProps/core.xml"] = marshalCoreProps()
 	override["/docProps/app.xml"] = marshalAppProps()
@@ -79,7 +90,7 @@ func (d *Document) Save(w io.Writer) error {
 		if err := pw.AddRelationships("", newRootRels()); err != nil {
 			return err
 		}
-		if err := pw.AddRelationships(d.main, newDocumentRels(numXML != nil)); err != nil {
+		if err := pw.AddRelationships(d.main, newDocumentRels(numXML != nil, d.footerPageNumber)); err != nil {
 			return err
 		}
 	}
@@ -200,6 +211,8 @@ func guessContentType(part string) string {
 		return ooxml.CTWordFontTable
 	case "/word/webSettings.xml":
 		return ooxml.CTWordWebSettings
+	case "/word/footer1.xml":
+		return ooxml.CTWordFooter
 	case "/docProps/core.xml":
 		return ooxml.CTCoreProps
 	case "/docProps/app.xml":
@@ -234,14 +247,4 @@ func newRootRels() *ooxml.Relationships {
 			{ID: "rId3", Type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties", Target: "docProps/app.xml"},
 		},
 	}
-}
-
-func newDocumentRels(withNumbering bool) *ooxml.Relationships {
-	rels := []ooxml.Relationship{
-		{ID: "rId1", Type: relTypeStyles, Target: "styles.xml"},
-	}
-	if withNumbering {
-		rels = append(rels, ooxml.Relationship{ID: "rId2", Type: relTypeNumbering, Target: "numbering.xml"})
-	}
-	return &ooxml.Relationships{Relationship: rels}
 }
